@@ -1243,7 +1243,7 @@ pre .javascript .function {
 }
 .links-of-author a::before,
 .links-of-author span.exturl::before {
-  background: #5c1a93;
+  background: #385991;
   border-radius: 50%;
   content: ' ';
   display: inline-block;
@@ -1569,10 +1569,7 @@ pre .javascript .function {
   position: fixed;
   transition-property: bottom;
   z-index: 1300;
-  width: 24px;
-}
-.back-to-top span {
-  display: none;
+  width: initial;
 }
 .back-to-top:hover {
   color: #fc6423;
@@ -2647,15 +2644,22 @@ ul.breadcrumb li + li:last-child {
   padding: 0;
 }
 @font-face {
-  font-family: HYZS;
-  src: url("/fonts/HYZhuanShuF.tty");
+  font-family: HYCZ;
+  src: url("/fonts/HYCuZhuanF.ttf");
+  font-weight: normal;
+}
+@font-face {
+  font-family: HYGL;
+  src: url("/fonts/HYGuLiW.ttf");
   font-weight: normal;
 }
 .site-subtitle {
-  font-family: STXingkai, "Microsoft YaHei", STXinweii;
+  font-family: 'HYGL', "Microsoft YaHei";
   color: #fff;
+  font-weight: normal;
 }
 .site-title {
-  font-family: 'HYZS', STXingkai;
-  font-size: 1.75em;
+  font-family: 'HYCZ', "Microsoft YaHei";
+  font-size: 2em;
+  color: #fff;
 }
