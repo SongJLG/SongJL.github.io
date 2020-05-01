@@ -1051,7 +1051,7 @@ pre .javascript .function {
   border-bottom: none;
   color: var(--brand-color);
   display: inline-block;
-  line-height: 2em;
+  line-height: 1.375em;
   padding: 0 40px;
   position: relative;
 }
@@ -1059,8 +1059,8 @@ pre .javascript .function {
   color: var(--brand-hover-color);
 }
 .site-title {
-  font-family: 'Liu Jian Mao Cao', 'Lato', "Microsoft YaHei", "PingFang SC", sans-serif;
-  font-size: 2em;
+  font-family: 'Lato', "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: 1.375em;
   font-weight: normal;
   margin: 0;
 }
@@ -1243,7 +1243,7 @@ pre .javascript .function {
 }
 .links-of-author a::before,
 .links-of-author span.exturl::before {
-  background: #37e949;
+  background: #5c1a93;
   border-radius: 50%;
   content: ' ';
   display: inline-block;
@@ -2645,4 +2645,17 @@ ul.breadcrumb li + li:last-child {
 }
 .links-of-blogroll-item {
   padding: 0;
+}
+@font-face {
+  font-family: HYZS;
+  src: url("/fonts/HYZhuanShuF.tty");
+  font-weight: normal;
+}
+.site-subtitle {
+  font-family: STXingkai, "Microsoft YaHei", STXinweii;
+  color: #fff;
+}
+.site-title {
+  font-family: 'HYZS', STXingkai;
+  font-size: 1.75em;
 }
