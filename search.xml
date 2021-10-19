@@ -1,14 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Hello World</title>
+    <url>/2020/04/27/hello-world/</url>
+    <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
+<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
+<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
+<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
+<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/one-command-deployment.html" target="_blank" rel="noopener">Deployment</a></p>
+]]></content>
+  </entry>
+  <entry>
     <title>使用kubebuilder开发kubernetes核心资源的webhook</title>
     <url>/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/</url>
     <content><![CDATA[<ul>
-<li><p><code>kubernetes</code> 的准入控制器的开发，通常情况下要么使用 <code>go</code> 的 <code>net/http</code> 来开发开发一个 <code>http</code> 服务端来实现逻辑，更简单的方法是使用 <code>conntronl-runtime</code> 实现。</p>
+<li><p><code>kubernetes</code> 的准入控制器的开发，通常情况下要么使用 <code>go</code> 的 <code>net/http</code> 开发<code>http</code> 服务端来实现逻辑，更简单的方法是使用 <code>conntronl-runtime</code> 实现。</p>
 </li>
-<li><p>我们用 <code>kubebuilder</code> 来开发 <code>k8s operator</code> 的时候，可以生成自定义资源的  <code>webhook</code> 开发，同时也能方便的生成资源清单。但无论是 <code>kubebuilder</code> 还是 <code>operator-sdk</code> 框架都无法实现 <code>core type</code> 资源的 <code>webhook</code> 开发。<code>kubebuiler</code> 的官方文档提到了 <code>core type webbook</code> 的开发，但并未具体提供开发的指导。</p>
+<li><p>我们用 <code>kubebuilder</code> 来开发 <code>k8s operator</code> 的时候，可以生成自定义资源的  <code>webhook</code> ，同时也能方便的生成资源清单。但无论是 <code>kubebuilder</code> 还是 <code>operator-sdk</code> 框架都无法实现 <code>core type</code> 资源的 <code>webhook</code> 。<code>kubebuiler</code> 的官方文档提到了 <code>core type webbook</code> 的开发，但并未具体提供具体的开发指导。</p>
 </li>
-<li><p>那么如何利用 <code>kubebuiler</code> 来简化核心资源准入控制器的开发？下面就摸索了一种方式。</p>
+<li><p>那么如何利用 <code>kubebuiler</code> 来简化核心资源准入控制器的开发？下面就探索了一种方式。</p>
 </li>
 </ul>
 <a id="more"></a>
@@ -62,95 +80,18 @@
 <li><p>删除 <code>SetupWebhookWithManager</code> 方法；</p>
 </li>
 <li><p>注册<code>webhook</code> ：</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">mgr.GetWebhookServer().Register("/mutate-core-v1-pod", &amp;webhook.Admission&#123;Handler: v1.NewPodValidator(mgr.GetClient())&#125;)</span><br></pre></td></tr></table></figure>
-</li>
-<li><pre><code class="shell">/*
-Copyright 2021 SongJL.
-*/
+<figure class="highlight go"><table><tr><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">Copyright 2021 SongJL.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// mgr.GetWebhookServer().Register("/mutate-core-v1-pod", &amp;webhook.Admission&#123;Handler: v1.NewPodValidator(mgr.GetClient())&#125;)</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">true<span class="string">"flag"</span></span><br><span class="line">true<span class="string">"os"</span></span><br><span class="line"></span><br><span class="line">true<span class="comment">// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)</span></span><br><span class="line">true<span class="comment">// to ensure that exec-entrypoint and run can make use of them.</span></span><br><span class="line">true<span class="string">"github.com/songjl/podwebhookdemo/api/v1"</span></span><br><span class="line">true<span class="string">"k8s.io/apimachinery/pkg/runtime"</span></span><br><span class="line">trueutilruntime <span class="string">"k8s.io/apimachinery/pkg/util/runtime"</span></span><br><span class="line">trueclientgoscheme <span class="string">"k8s.io/client-go/kubernetes/scheme"</span></span><br><span class="line">truectrl <span class="string">"sigs.k8s.io/controller-runtime"</span></span><br><span class="line">true<span class="string">"sigs.k8s.io/controller-runtime/pkg/webhook"</span></span><br><span class="line">true<span class="string">"sigs.k8s.io/controller-runtime/pkg/healthz"</span></span><br><span class="line">true<span class="string">"sigs.k8s.io/controller-runtime/pkg/log/zap"</span></span><br><span class="line">true<span class="comment">//+kubebuilder:scaffold:imports</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">truescheme   = runtime.NewScheme()</span><br><span class="line">truesetupLog = ctrl.Log.WithName(<span class="string">"setup"</span>)</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">trueutilruntime.Must(clientgoscheme.AddToScheme(scheme))</span><br><span class="line"></span><br><span class="line">true<span class="comment">//+kubebuilder:scaffold:scheme</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">true<span class="keyword">var</span> metricsAddr <span class="keyword">string</span></span><br><span class="line">true<span class="keyword">var</span> enableLeaderElection <span class="keyword">bool</span></span><br><span class="line">true<span class="keyword">var</span> probeAddr <span class="keyword">string</span></span><br><span class="line">trueflag.StringVar(&amp;metricsAddr, <span class="string">"metrics-bind-address"</span>, <span class="string">":8080"</span>, <span class="string">"The address the metric endpoint binds to."</span>)</span><br><span class="line">trueflag.StringVar(&amp;probeAddr, <span class="string">"health-probe-bind-address"</span>, <span class="string">":8081"</span>, <span class="string">"The address the probe endpoint binds to."</span>)</span><br><span class="line">trueflag.BoolVar(&amp;enableLeaderElection, <span class="string">"leader-elect"</span>, <span class="literal">false</span>,</span><br><span class="line">truetrue<span class="string">"Enable leader election for controller manager. "</span>+</span><br><span class="line">truetruetrue<span class="string">"Enabling this will ensure there is only one active controller manager."</span>)</span><br><span class="line">trueopts := zap.Options&#123;</span><br><span class="line">truetrueDevelopment: <span class="literal">true</span>,</span><br><span class="line">true&#125;</span><br><span class="line">trueopts.BindFlags(flag.CommandLine)</span><br><span class="line">trueflag.Parse()</span><br><span class="line"></span><br><span class="line">truectrl.SetLogger(zap.New(zap.UseFlagOptions(&amp;opts)))</span><br><span class="line"></span><br><span class="line">truemgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options&#123;</span><br><span class="line">truetrueScheme:                 scheme,</span><br><span class="line">truetrueMetricsBindAddress:     metricsAddr,</span><br><span class="line">truetruePort:                   <span class="number">9443</span>,</span><br><span class="line">truetrueHealthProbeBindAddress: probeAddr,</span><br><span class="line">truetrueLeaderElection:         enableLeaderElection,</span><br><span class="line">truetrueLeaderElectionID:       <span class="string">"c4e7e7ef.developer.guy"</span>,</span><br><span class="line">true&#125;)</span><br><span class="line">true<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">truetruesetupLog.Error(err, <span class="string">"unable to start manager"</span>)</span><br><span class="line">truetrueos.Exit(<span class="number">1</span>)</span><br><span class="line">true&#125;</span><br><span class="line"></span><br><span class="line">truemgr.GetWebhookServer().Register(<span class="string">"/validate-v1-pod"</span>, &amp;webhook.Admission&#123;Handler: v1.NewPodValidator(mgr.GetClient())&#125;)</span><br><span class="line"></span><br><span class="line">true<span class="comment">//+kubebuilder:scaffold:builder</span></span><br><span class="line"></span><br><span class="line">true<span class="keyword">if</span> err := mgr.AddHealthzCheck(<span class="string">"healthz"</span>, healthz.Ping); err != <span class="literal">nil</span> &#123;</span><br><span class="line">truetruesetupLog.Error(err, <span class="string">"unable to set up health check"</span>)</span><br><span class="line">truetrueos.Exit(<span class="number">1</span>)</span><br><span class="line">true&#125;</span><br><span class="line">true<span class="keyword">if</span> err := mgr.AddReadyzCheck(<span class="string">"readyz"</span>, healthz.Ping); err != <span class="literal">nil</span> &#123;</span><br><span class="line">truetruesetupLog.Error(err, <span class="string">"unable to set up ready check"</span>)</span><br><span class="line">truetrueos.Exit(<span class="number">1</span>)</span><br><span class="line">true&#125;</span><br><span class="line"></span><br><span class="line">truesetupLog.Info(<span class="string">"starting manager"</span>)</span><br><span class="line">true<span class="keyword">if</span> err := mgr.Start(ctrl.SetupSignalHandler()); err != <span class="literal">nil</span> &#123;</span><br><span class="line">truetruesetupLog.Error(err, <span class="string">"problem running manager"</span>)</span><br><span class="line">truetrueos.Exit(<span class="number">1</span>)</span><br><span class="line">true&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-package main
 
-import (
-    "flag"
-    "os"
 
-    // Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-    // to ensure that exec-entrypoint and run can make use of them.
-    "github.com/songjl/podwebhookdemo/api/v1"
-    "k8s.io/apimachinery/pkg/runtime"
-    utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-    clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-    ctrl "sigs.k8s.io/controller-runtime"
-    "sigs.k8s.io/controller-runtime/pkg/webhook"
-    "sigs.k8s.io/controller-runtime/pkg/healthz"
-    "sigs.k8s.io/controller-runtime/pkg/log/zap"
-    //+kubebuilder:scaffold:imports
-)
-
-var (
-    scheme   = runtime.NewScheme()
-    setupLog = ctrl.Log.WithName("setup")
-)
-
-func init() {
-    utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-    //+kubebuilder:scaffold:scheme
-}
-
-func main() {
-    var metricsAddr string
-    var enableLeaderElection bool
-    var probeAddr string
-    flag.StringVar(&amp;metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-    flag.StringVar(&amp;probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-    flag.BoolVar(&amp;enableLeaderElection, "leader-elect", false,
-        "Enable leader election for controller manager. "+
-            "Enabling this will ensure there is only one active controller manager.")
-    opts := zap.Options{
-        Development: true,
-    }
-    opts.BindFlags(flag.CommandLine)
-    flag.Parse()
-
-    ctrl.SetLogger(zap.New(zap.UseFlagOptions(&amp;opts)))
-
-    mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-        Scheme:                 scheme,
-        MetricsBindAddress:     metricsAddr,
-        Port:                   9443,
-        HealthProbeBindAddress: probeAddr,
-        LeaderElection:         enableLeaderElection,
-        LeaderElectionID:       "c4e7e7ef.developer.guy",
-    })
-    if err != nil {
-        setupLog.Error(err, "unable to start manager")
-        os.Exit(1)
-    }
-
-    mgr.GetWebhookServer().Register("/validate-v1-pod", &amp;webhook.Admission{Handler: v1.NewPodValidator(mgr.GetClient())})
-
-    //+kubebuilder:scaffold:builder
-
-    if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-        setupLog.Error(err, "unable to set up health check")
-        os.Exit(1)
-    }
-    if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-        setupLog.Error(err, "unable to set up ready check")
-        os.Exit(1)
-    }
-
-    setupLog.Info("starting manager")
-    if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-        setupLog.Error(err, "problem running manager")
-        os.Exit(1)
-    }
-}
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line">    </span><br><span class="line"></span><br><span class="line">- 代码逻辑，需要实现 &#96;Handler&#96; 方法：</span><br><span class="line"></span><br><span class="line">  &#96;&#96;&#96;shell</span><br><span class="line">  &#x2F;*</span><br><span class="line">  Copyright 2021 SongJL.</span><br><span class="line">  *&#x2F;</span><br><span class="line">  package v1</span><br><span class="line">  </span><br><span class="line">  import (</span><br><span class="line">  	&quot;context&quot;</span><br><span class="line">  	&quot;encoding&#x2F;json&quot;</span><br><span class="line">  	&quot;net&#x2F;http&quot;</span><br><span class="line">  </span><br><span class="line">  	corev1 &quot;k8s.io&#x2F;api&#x2F;core&#x2F;v1&quot;</span><br><span class="line">  	&quot;sigs.k8s.io&#x2F;controller-runtime&#x2F;pkg&#x2F;client&quot;</span><br><span class="line">  	&quot;sigs.k8s.io&#x2F;controller-runtime&#x2F;pkg&#x2F;webhook&#x2F;admission&quot;</span><br><span class="line">  )</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; +kubebuilder:webhook:verbs&#x3D;create;update,path&#x3D;&#x2F;validate-core-v1-pod,mutating&#x3D;false,failurePolicy&#x3D;fail,groups&#x3D;core,resources&#x3D;pods,versions&#x3D;v1,name&#x3D;vpod.kb.io</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; podValidator validates Pods</span><br><span class="line">  type PodSidecarMutate struct &#123;</span><br><span class="line">  	Client  client.Client</span><br><span class="line">  	decoder *admission.Decoder</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  func NewPodSideCarMutate(c client.Client) admission.Handler &#123;</span><br><span class="line">  	return &amp;PodSidecarMutate&#123;Client: c&#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; podValidator admits a pod if a specific annotation exists.</span><br><span class="line">  func (v *PodSidecarMutate) Handle(ctx context.Context, req admission.Request) admission.Response &#123;</span><br><span class="line">  	&#x2F;&#x2F; TODO</span><br><span class="line">  </span><br><span class="line">  	pod :&#x3D; &amp;corev1.Pod&#123;&#125;</span><br><span class="line">  </span><br><span class="line">  	err :&#x3D; v.decoder.Decode(req, pod)</span><br><span class="line">  	if err !&#x3D; nil &#123;</span><br><span class="line">  		return admission.Errored(http.StatusBadRequest, err)</span><br><span class="line">  	&#125;</span><br><span class="line">  </span><br><span class="line">  	sidecar :&#x3D; corev1.Container&#123;</span><br><span class="line">  		Name:            &quot;nginx&quot;,</span><br><span class="line">  		Image:           &quot;nginx:1.16&quot;,</span><br><span class="line">  		ImagePullPolicy: corev1.PullIfNotPresent,</span><br><span class="line">  		Ports: []corev1.ContainerPort&#123;</span><br><span class="line">  					&#123;</span><br><span class="line">  						Name: &quot;http&quot;,</span><br><span class="line">  						ContainerPort: 80,</span><br><span class="line">  					&#125;,</span><br><span class="line">  				&#125;,</span><br><span class="line">  		&#125;</span><br><span class="line">  </span><br><span class="line">  	pod.Spec.Containers &#x3D; append(pod.Spec.Containers, sidecar)</span><br><span class="line">  </span><br><span class="line">  </span><br><span class="line">  	marshaledPod, err :&#x3D; json.Marshal(pod)</span><br><span class="line">  	if err !&#x3D; nil &#123;</span><br><span class="line">  		return admission.Errored(http.StatusInternalServerError, err)</span><br><span class="line">  	&#125;</span><br><span class="line">  </span><br><span class="line">  	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; podValidator implements admission.DecoderInjector.</span><br><span class="line">  &#x2F;&#x2F; A decoder will be automatically injected.</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; InjectDecoder injects the decoder.</span><br><span class="line">  func (v *PodSidecarMutate) InjectDecoder(d *admission.Decoder) error &#123;</span><br><span class="line">  	v.decoder &#x3D; d</span><br><span class="line">  	return nil</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
-</code></pre>
 </li>
 </ul>
+</li>
+</ul>
+<ul>
+<li><p>代码逻辑，需要实现 <code>Handler</code> 方法：</p>
+<figure class="highlight go"><table><tr><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">Copyright 2021 SongJL.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">package</span> v1</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">true<span class="string">"context"</span></span><br><span class="line">true<span class="string">"encoding/json"</span></span><br><span class="line">true<span class="string">"net/http"</span></span><br><span class="line"></span><br><span class="line">truecorev1 <span class="string">"k8s.io/api/core/v1"</span></span><br><span class="line">true<span class="string">"sigs.k8s.io/controller-runtime/pkg/client"</span></span><br><span class="line">true<span class="string">"sigs.k8s.io/controller-runtime/pkg/webhook/admission"</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// +kubebuilder:webhook:verbs=create;update,path=/validate-core-v1-pod,mutating=false,failurePolicy=fail,groups=core,resources=pods,versions=v1,name=vpod.kb.io</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// podValidator validates Pods</span></span><br><span class="line"><span class="keyword">type</span> PodSidecarMutate <span class="keyword">struct</span> &#123;</span><br><span class="line">trueClient  client.Client</span><br><span class="line">truedecoder *admission.Decoder</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewPodSideCarMutate</span><span class="params">(c client.Client)</span> <span class="title">admission</span>.<span class="title">Handler</span></span> &#123;</span><br><span class="line">true<span class="keyword">return</span> &amp;PodSidecarMutate&#123;Client: c&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// podValidator admits a pod if a specific annotation exists.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v *PodSidecarMutate)</span> <span class="title">Handle</span><span class="params">(ctx context.Context, req admission.Request)</span> <span class="title">admission</span>.<span class="title">Response</span></span> &#123;</span><br><span class="line">true<span class="comment">// TODO</span></span><br><span class="line"></span><br><span class="line">truepod := &amp;corev1.Pod&#123;&#125;</span><br><span class="line"></span><br><span class="line">trueerr := v.decoder.Decode(req, pod)</span><br><span class="line">true<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">truetrue<span class="keyword">return</span> admission.Errored(http.StatusBadRequest, err)</span><br><span class="line">true&#125;</span><br><span class="line"></span><br><span class="line">truesidecar := corev1.Container&#123;</span><br><span class="line">truetrueName:            <span class="string">"nginx"</span>,</span><br><span class="line">truetrueImage:           <span class="string">"nginx:1.16"</span>,</span><br><span class="line">truetrueImagePullPolicy: corev1.PullIfNotPresent,</span><br><span class="line">truetruePorts: []corev1.ContainerPort&#123;</span><br><span class="line">truetruetruetruetrue&#123;</span><br><span class="line">truetruetruetruetruetrueName: <span class="string">"http"</span>,</span><br><span class="line">truetruetruetruetruetrueContainerPort: <span class="number">80</span>,</span><br><span class="line">truetruetruetruetrue&#125;,</span><br><span class="line">truetruetruetrue&#125;,</span><br><span class="line">truetrue&#125;</span><br><span class="line"></span><br><span class="line">truepod.Spec.Containers = <span class="built_in">append</span>(pod.Spec.Containers, sidecar)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">truemarshaledPod, err := json.Marshal(pod)</span><br><span class="line">true<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">truetrue<span class="keyword">return</span> admission.Errored(http.StatusInternalServerError, err)</span><br><span class="line">true&#125;</span><br><span class="line"></span><br><span class="line">true<span class="keyword">return</span> admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// podValidator implements admission.DecoderInjector.</span></span><br><span class="line"><span class="comment">// A decoder will be automatically injected.</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// InjectDecoder injects the decoder.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v *PodSidecarMutate)</span> <span class="title">InjectDecoder</span><span class="params">(d *admission.Decoder)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">truev.decoder = d</span><br><span class="line">true<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 </li>
 </ul>
 <h3 id="构建镜像并测试"><a href="#构建镜像并测试" class="headerlink" title="构建镜像并测试"></a>构建镜像并测试</h3><ul>
@@ -161,7 +102,7 @@ func main() {
 <li><p>核心资源无需自定义控制器，我们也没有生成，修改；</p>
 </li>
 <li><p>网络问题，添加 <code>goproxy</code> ，修改 <code>gcr</code> 仓库的镜像；</p>
-<figure class="highlight dockerfile"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Build the manager binary</span></span><br><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.16</span> as builder</span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /workspace</span></span><br><span class="line"><span class="comment"># Copy the Go Modules manifests</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.mod go.mod</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.sum go.sum</span></span><br><span class="line"><span class="comment"># cache deps before building and copying source so that we don't need to re-download as much</span></span><br><span class="line"><span class="comment"># and so that source changes don't invalidate our downloaded layer</span></span><br><span class="line"><span class="comment"># RUN GOPROXY=https://goproxy.cn &amp;&amp; go mod download</span></span><br><span class="line"><span class="comment"># 修改gopxory</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> go env -e GOPROXY=https://goproxy.cn &amp;&amp;　go mod download</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Copy the go source</span></span><br><span class="line"><span class="comment"># 无需控制器</span></span><br><span class="line"><span class="comment"># COPY controllers/ controllers/</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> main.go main.go</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> api/ api/</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Build</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Use distroless as minimal base image to package the manager binary</span></span><br><span class="line"><span class="comment"># Refer to https://github.com/GoogleContainerTools/distroless for more details</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># gcr的镜像国内无法拉取，修改成docker hub上的</span></span><br><span class="line"><span class="keyword">FROM</span> katanomi/distroless-static:nonroot</span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> --from=builder /workspace/manager .</span></span><br><span class="line"><span class="keyword">USER</span> <span class="number">65532</span>:<span class="number">65532</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight dockerfile"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Build the manager binary</span></span><br><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.16</span> as builder</span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /workspace</span></span><br><span class="line"><span class="comment"># Copy the Go Modules manifests</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.mod go.mod</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.sum go.sum</span></span><br><span class="line"><span class="comment"># cache deps before building and copying source so that we don't need to re-download as much</span></span><br><span class="line"><span class="comment"># and so that source changes don't invalidate our downloaded layer</span></span><br><span class="line"><span class="comment"># RUN GOPROXY=https://goproxy.cn &amp;&amp; go mod download</span></span><br><span class="line"><span class="comment"># 修改gopxory</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> go env -w GOPROXY=https://goproxy.cn &amp;&amp;　go mod download</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Copy the go source</span></span><br><span class="line"><span class="comment"># 无需控制器</span></span><br><span class="line"><span class="comment"># COPY controllers/ controllers/</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> main.go main.go</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> api/ api/</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Build</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Use distroless as minimal base image to package the manager binary</span></span><br><span class="line"><span class="comment"># Refer to https://github.com/GoogleContainerTools/distroless for more details</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># gcr的镜像国内无法拉取，修改成docker hub上的</span></span><br><span class="line"><span class="keyword">FROM</span> katanomi/distroless-static:nonroot</span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> --from=builder /workspace/manager .</span></span><br><span class="line"><span class="keyword">USER</span> <span class="number">65532</span>:<span class="number">65532</span></span><br></pre></td></tr></table></figure>
 </li>
 <li><p>构建并上传到仓库</p>
 <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">docker build -t songjl0818/podsidecardemo:v1 .</span><br><span class="line">docker push songjl0818/podsidecardemo:v1</span><br></pre></td></tr></table></figure>
@@ -190,7 +131,7 @@ func main() {
 <li><p>查看这个 <code>pod</code> ，可以看到<code>pod</code> 多了一个容器，说明 <code>sidecar</code> 生效了，在下图中也可以看到，代码中的<code>nginx</code> 容器已经自动添加到<code>pod</code>当中了：</p>
 <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">[root@hy-master01 ~]# kubectl get pod</span><br><span class="line">NAME                          READY   STATUS    RESTARTS   AGE</span><br><span class="line">test-webhook                  2/2     Running   0          33m</span><br></pre></td></tr></table></figure>
 
-<p><img src="%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook%5Cwebhook.jpg" alt="webhook"></p>
+<p><img src="webhook.jpg" alt="webhook"></p>
 </li>
 </ul>
 </li>
@@ -206,23 +147,5 @@ func main() {
         <tag>go</tag>
         <tag>devops</tag>
       </tags>
-  </entry>
-  <entry>
-    <title>Hello World</title>
-    <url>/2020/04/27/hello-world/</url>
-    <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/one-command-deployment.html" target="_blank" rel="noopener">Deployment</a></p>
-]]></content>
   </entry>
 </search>
