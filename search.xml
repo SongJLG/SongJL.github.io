@@ -1,6 +1,213 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>使用kubebuilder开发kubernetes核心资源的webhook</title>
+    <url>/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/</url>
+    <content><![CDATA[<ul>
+<li><p><code>kubernetes</code> 的准入控制器的开发，通常情况下要么使用 <code>go</code> 的 <code>net/http</code> 来开发开发一个 <code>http</code> 服务端来实现逻辑，更简单的方法是使用 <code>conntronl-runtime</code> 实现。</p>
+</li>
+<li><p>我们用 <code>kubebuilder</code> 来开发 <code>k8s operator</code> 的时候，可以生成自定义资源的  <code>webhook</code> 开发，同时也能方便的生成资源清单。但无论是 <code>kubebuilder</code> 还是 <code>operator-sdk</code> 框架都无法实现 <code>core type</code> 资源的 <code>webhook</code> 开发。<code>kubebuiler</code> 的官方文档提到了 <code>core type webbook</code> 的开发，但并未具体提供开发的指导。</p>
+</li>
+<li><p>那么如何利用 <code>kubebuiler</code> 来简化核心资源准入控制器的开发？下面就摸索了一种方式。</p>
+</li>
+</ul>
+<a id="more"></a>
+
+
+<h3 id="按照一般CRD开发方式生成代码框架"><a href="#按照一般CRD开发方式生成代码框架" class="headerlink" title="按照一般CRD开发方式生成代码框架"></a>按照一般<code>CRD</code>开发方式生成代码框架</h3><ul>
+<li><p>对于 <code>kubebuilder</code> 的使用这里不做赘述；</p>
+</li>
+<li><p>生成代码框架：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 创建文件夹</span></span><br><span class="line">mkdir pod-sidercar-webhook</span><br><span class="line">go mod init github.com/songjl/podwebhookdemo</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 申城代码框架</span></span><br><span class="line">[root@Docker pod-sidercar-webhook]# kubebuilder init --domain songjl.com --license none --owner "JLSong"</span><br><span class="line">Writing kustomize manifests for you to edit...</span><br><span class="line">Writing scaffold for you to edit...</span><br><span class="line">Get controller runtime:</span><br><span class="line"><span class="meta">$</span><span class="bash"> go get sigs.k8s.io/controller-runtime@v0.8.3</span></span><br><span class="line">Update dependencies:</span><br><span class="line"><span class="meta">$</span><span class="bash"> go mod tidy</span></span><br><span class="line">Next: define a resource with:</span><br><span class="line"><span class="meta">$</span><span class="bash"> kubebuilder create api</span></span><br><span class="line"></span><br><span class="line">[root@Docker pod-sidercar-webhook]# go get sigs.k8s.io/controller-runtime@v0.8.3</span><br><span class="line">[root@Docker pod-sidercar-webhook]# go mod tidy</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 生成api，这里注意，我们要创建的是核心资源的 webhook，所以不需要生成 Resource 和 Controller</span></span><br><span class="line">[root@Docker pod-sidercar-webhook]# kubebuilder create api --group core --version v1 --kind Pod</span><br><span class="line">Create Resource [y/n]</span><br><span class="line">n</span><br><span class="line">Create Controller [y/n]</span><br><span class="line">n</span><br><span class="line">Writing kustomize manifests for you to edit...</span><br><span class="line">Writing scaffold for you to edit...</span><br><span class="line">Update dependencies:</span><br><span class="line"><span class="meta">$</span><span class="bash"> go mod tidy</span></span><br><span class="line"></span><br><span class="line">[root@Docker pod-sidercar-webhook]# go mod tidy</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>接下来，生成 <code>webhook</code>。</p>
+<ul>
+<li><p>在 <code>kubernetes</code> 中，有下面三种 <code>webhook</code>：<code>admission webhook</code>， <code>authorization webhook</code> 和 <code>CRD conversion webhook</code>。</p>
+</li>
+<li><p>在 <code>controller-runtime</code> 库中，支持 <code>admission webhooks</code> 和 <code>CRD conversion webhooks</code>；</p>
+</li>
+<li><p>而在准入 <code>admission webhooks</code> ，有两个阶段：<code>validate</code> 准入阶段，判断资源是否符合规范；<code>mutate</code> 阶段，会在资源上 打上相应补丁；</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> defaulting 是 mutate 阶段的webhook，programmatic-validation 是 validate 阶段的 webhook，在demo种我们实现 mutate 的 webhook</span></span><br><span class="line">[root@Docker pod-sidercar-webhook]# kubebuilder create webhook --group core --version v1 --kind Pod --defaulting --webhook-version v1</span><br><span class="line">Writing kustomize manifests for you to edit...</span><br><span class="line">Writing scaffold for you to edit...</span><br><span class="line">api/v1/pod_webhook.go</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>通过以上步骤，我们代码框架就生成了，目录结构如下，下面就是修改和<code>codeding</code> ；</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">[root@Docker pod-sidercar-webhook]# tree -L 2</span><br><span class="line">.</span><br><span class="line">├── api</span><br><span class="line">│   └── v1</span><br><span class="line">├── config</span><br><span class="line">│   ├── certmanager</span><br><span class="line">│   ├── default</span><br><span class="line">│   ├── manager</span><br><span class="line">│   ├── prometheus</span><br><span class="line">│   ├── rbac</span><br><span class="line">│   └── webhook</span><br><span class="line">├── Dockerfile</span><br><span class="line">├── go.mod</span><br><span class="line">├── go.sum</span><br><span class="line">├── hack</span><br><span class="line">│   └── boilerplate.go.txt</span><br><span class="line">├── main.go</span><br><span class="line">├── Makefile</span><br><span class="line">└── PROJECT</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<h3 id="修改代码框架"><a href="#修改代码框架" class="headerlink" title="修改代码框架"></a>修改代码框架</h3><ul>
+<li><p>由于我们并没有生成控制器和资源，所以相应的资源清单要做一些修改;</p>
+<ul>
+<li><p>对于  <code>config/default/kustomization.yaml</code> 打开相应的<code>webhook</code> 的开关，删除 <code>crd</code> 资源；</p>
+</li>
+<li><p>对于 <code>config/default/webhookcainjection_patch.yaml</code> ，删除 <code>validate</code> 部分：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 对于该文件来说，因为在demo中只有 matute webhook，所以要做相应的删除，同样的，如果两种 webhook都有，那么该文件则不需改动</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> This patch add annotation to admission webhook config and</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> the variables $(CERTIFICATE_NAMESPACE) and $(CERTIFICATE_NAME) will be substituted by kustomize.</span></span><br><span class="line">apiVersion: admissionregistration.k8s.io/v1</span><br><span class="line">kind: MutatingWebhookConfiguration</span><br><span class="line">metadata:</span><br><span class="line">  name: mutating-webhook-configuration</span><br><span class="line">  annotations:</span><br><span class="line">    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)</span><br><span class="line"><span class="meta">#</span><span class="bash"> ---</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> apiVersion: admissionregistration.k8s.io/v1</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> kind: ValidatingWebhookConfiguration</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> metadata:</span></span><br><span class="line"><span class="meta">#</span><span class="bash">   name: validating-webhook-configuration</span></span><br><span class="line"><span class="meta">#</span><span class="bash">   annotations:</span></span><br><span class="line"><span class="meta">#</span><span class="bash">     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>在 <code>config/rbac/kustomization.yaml</code> 中，删除<code>role</code> ：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">resources:</span><br><span class="line"><span class="meta">#</span><span class="bash"> All RBAC will be applied under this service account <span class="keyword">in</span></span></span><br><span class="line"><span class="meta">#</span><span class="bash"> the deployment namespace. You may comment out this resource</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> <span class="keyword">if</span> your manager will use a service account that exists at</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> runtime. Be sure to update RoleBinding and ClusterRoleBinding</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> subjects <span class="keyword">if</span> changing service account names.</span></span><br><span class="line">- service_account.yaml</span><br><span class="line"><span class="meta">#</span><span class="bash"> - role.yaml</span></span><br><span class="line">- role_binding.yaml</span><br><span class="line">- leader_election_role.yaml</span><br><span class="line">- leader_election_role_binding.yaml</span><br><span class="line"><span class="meta">#</span><span class="bash"> Comment the following 4 lines <span class="keyword">if</span> you want to <span class="built_in">disable</span></span></span><br><span class="line"><span class="meta">#</span><span class="bash"> the auth proxy (https://github.com/brancz/kube-rbac-proxy)</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> <span class="built_in">which</span> protects your /metrics endpoint.</span></span><br><span class="line">- auth_proxy_service.yaml</span><br><span class="line">- auth_proxy_role.yaml</span><br><span class="line">- auth_proxy_role_binding.yaml</span><br><span class="line">- auth_proxy_client_clusterrole.yaml</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>修改完之后，手动生成一下资源清单，做一下测试：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 先生成 manifests</span></span><br><span class="line">make manifests</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 生成完整的资源清单</span></span><br><span class="line">kustomize build config/default/ &gt; pod-sidercar-webhook.yaml</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h3 id="实现代码逻辑"><a href="#实现代码逻辑" class="headerlink" title="实现代码逻辑"></a>实现代码逻辑</h3><ul>
+<li><p>修改 <code>main.go</code>  ：</p>
+<ul>
+<li><p>删除 <code>SetupWebhookWithManager</code> 方法；</p>
+</li>
+<li><p>注册<code>webhook</code> ：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">mgr.GetWebhookServer().Register("/mutate-core-v1-pod", &amp;webhook.Admission&#123;Handler: v1.NewPodValidator(mgr.GetClient())&#125;)</span><br></pre></td></tr></table></figure>
+</li>
+<li><pre><code class="shell">/*
+Copyright 2021 SongJL.
+*/
+
+package main
+
+import (
+    "flag"
+    "os"
+
+    // Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+    // to ensure that exec-entrypoint and run can make use of them.
+    "github.com/songjl/podwebhookdemo/api/v1"
+    "k8s.io/apimachinery/pkg/runtime"
+    utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+    clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+    ctrl "sigs.k8s.io/controller-runtime"
+    "sigs.k8s.io/controller-runtime/pkg/webhook"
+    "sigs.k8s.io/controller-runtime/pkg/healthz"
+    "sigs.k8s.io/controller-runtime/pkg/log/zap"
+    //+kubebuilder:scaffold:imports
+)
+
+var (
+    scheme   = runtime.NewScheme()
+    setupLog = ctrl.Log.WithName("setup")
+)
+
+func init() {
+    utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+    //+kubebuilder:scaffold:scheme
+}
+
+func main() {
+    var metricsAddr string
+    var enableLeaderElection bool
+    var probeAddr string
+    flag.StringVar(&amp;metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+    flag.StringVar(&amp;probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+    flag.BoolVar(&amp;enableLeaderElection, "leader-elect", false,
+        "Enable leader election for controller manager. "+
+            "Enabling this will ensure there is only one active controller manager.")
+    opts := zap.Options{
+        Development: true,
+    }
+    opts.BindFlags(flag.CommandLine)
+    flag.Parse()
+
+    ctrl.SetLogger(zap.New(zap.UseFlagOptions(&amp;opts)))
+
+    mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+        Scheme:                 scheme,
+        MetricsBindAddress:     metricsAddr,
+        Port:                   9443,
+        HealthProbeBindAddress: probeAddr,
+        LeaderElection:         enableLeaderElection,
+        LeaderElectionID:       "c4e7e7ef.developer.guy",
+    })
+    if err != nil {
+        setupLog.Error(err, "unable to start manager")
+        os.Exit(1)
+    }
+
+    mgr.GetWebhookServer().Register("/validate-v1-pod", &amp;webhook.Admission{Handler: v1.NewPodValidator(mgr.GetClient())})
+
+    //+kubebuilder:scaffold:builder
+
+    if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+        setupLog.Error(err, "unable to set up health check")
+        os.Exit(1)
+    }
+    if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+        setupLog.Error(err, "unable to set up ready check")
+        os.Exit(1)
+    }
+
+    setupLog.Info("starting manager")
+    if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+        setupLog.Error(err, "problem running manager")
+        os.Exit(1)
+    }
+}
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line">    </span><br><span class="line"></span><br><span class="line">- 代码逻辑，需要实现 &#96;Handler&#96; 方法：</span><br><span class="line"></span><br><span class="line">  &#96;&#96;&#96;shell</span><br><span class="line">  &#x2F;*</span><br><span class="line">  Copyright 2021 SongJL.</span><br><span class="line">  *&#x2F;</span><br><span class="line">  package v1</span><br><span class="line">  </span><br><span class="line">  import (</span><br><span class="line">  	&quot;context&quot;</span><br><span class="line">  	&quot;encoding&#x2F;json&quot;</span><br><span class="line">  	&quot;net&#x2F;http&quot;</span><br><span class="line">  </span><br><span class="line">  	corev1 &quot;k8s.io&#x2F;api&#x2F;core&#x2F;v1&quot;</span><br><span class="line">  	&quot;sigs.k8s.io&#x2F;controller-runtime&#x2F;pkg&#x2F;client&quot;</span><br><span class="line">  	&quot;sigs.k8s.io&#x2F;controller-runtime&#x2F;pkg&#x2F;webhook&#x2F;admission&quot;</span><br><span class="line">  )</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; +kubebuilder:webhook:verbs&#x3D;create;update,path&#x3D;&#x2F;validate-core-v1-pod,mutating&#x3D;false,failurePolicy&#x3D;fail,groups&#x3D;core,resources&#x3D;pods,versions&#x3D;v1,name&#x3D;vpod.kb.io</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; podValidator validates Pods</span><br><span class="line">  type PodSidecarMutate struct &#123;</span><br><span class="line">  	Client  client.Client</span><br><span class="line">  	decoder *admission.Decoder</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  func NewPodSideCarMutate(c client.Client) admission.Handler &#123;</span><br><span class="line">  	return &amp;PodSidecarMutate&#123;Client: c&#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; podValidator admits a pod if a specific annotation exists.</span><br><span class="line">  func (v *PodSidecarMutate) Handle(ctx context.Context, req admission.Request) admission.Response &#123;</span><br><span class="line">  	&#x2F;&#x2F; TODO</span><br><span class="line">  </span><br><span class="line">  	pod :&#x3D; &amp;corev1.Pod&#123;&#125;</span><br><span class="line">  </span><br><span class="line">  	err :&#x3D; v.decoder.Decode(req, pod)</span><br><span class="line">  	if err !&#x3D; nil &#123;</span><br><span class="line">  		return admission.Errored(http.StatusBadRequest, err)</span><br><span class="line">  	&#125;</span><br><span class="line">  </span><br><span class="line">  	sidecar :&#x3D; corev1.Container&#123;</span><br><span class="line">  		Name:            &quot;nginx&quot;,</span><br><span class="line">  		Image:           &quot;nginx:1.16&quot;,</span><br><span class="line">  		ImagePullPolicy: corev1.PullIfNotPresent,</span><br><span class="line">  		Ports: []corev1.ContainerPort&#123;</span><br><span class="line">  					&#123;</span><br><span class="line">  						Name: &quot;http&quot;,</span><br><span class="line">  						ContainerPort: 80,</span><br><span class="line">  					&#125;,</span><br><span class="line">  				&#125;,</span><br><span class="line">  		&#125;</span><br><span class="line">  </span><br><span class="line">  	pod.Spec.Containers &#x3D; append(pod.Spec.Containers, sidecar)</span><br><span class="line">  </span><br><span class="line">  </span><br><span class="line">  	marshaledPod, err :&#x3D; json.Marshal(pod)</span><br><span class="line">  	if err !&#x3D; nil &#123;</span><br><span class="line">  		return admission.Errored(http.StatusInternalServerError, err)</span><br><span class="line">  	&#125;</span><br><span class="line">  </span><br><span class="line">  	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; podValidator implements admission.DecoderInjector.</span><br><span class="line">  &#x2F;&#x2F; A decoder will be automatically injected.</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F; InjectDecoder injects the decoder.</span><br><span class="line">  func (v *PodSidecarMutate) InjectDecoder(d *admission.Decoder) error &#123;</span><br><span class="line">  	v.decoder &#x3D; d</span><br><span class="line">  	return nil</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+</code></pre>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="构建镜像并测试"><a href="#构建镜像并测试" class="headerlink" title="构建镜像并测试"></a>构建镜像并测试</h3><ul>
+<li><p>构建镜像：</p>
+<ul>
+<li><p>国内网络原因，因此我们对生成的 <code>Dockerfile</code> 做修改，这是一个多阶段构建的<code>Dockferile</code>:</p>
+</li>
+<li><p>核心资源无需自定义控制器，我们也没有生成，修改；</p>
+</li>
+<li><p>网络问题，添加 <code>goproxy</code> ，修改 <code>gcr</code> 仓库的镜像；</p>
+<figure class="highlight dockerfile"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Build the manager binary</span></span><br><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.16</span> as builder</span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /workspace</span></span><br><span class="line"><span class="comment"># Copy the Go Modules manifests</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.mod go.mod</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.sum go.sum</span></span><br><span class="line"><span class="comment"># cache deps before building and copying source so that we don't need to re-download as much</span></span><br><span class="line"><span class="comment"># and so that source changes don't invalidate our downloaded layer</span></span><br><span class="line"><span class="comment"># RUN GOPROXY=https://goproxy.cn &amp;&amp; go mod download</span></span><br><span class="line"><span class="comment"># 修改gopxory</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> go env -e GOPROXY=https://goproxy.cn &amp;&amp;　go mod download</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Copy the go source</span></span><br><span class="line"><span class="comment"># 无需控制器</span></span><br><span class="line"><span class="comment"># COPY controllers/ controllers/</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> main.go main.go</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> api/ api/</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Build</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Use distroless as minimal base image to package the manager binary</span></span><br><span class="line"><span class="comment"># Refer to https://github.com/GoogleContainerTools/distroless for more details</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># gcr的镜像国内无法拉取，修改成docker hub上的</span></span><br><span class="line"><span class="keyword">FROM</span> katanomi/distroless-static:nonroot</span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> --from=builder /workspace/manager .</span></span><br><span class="line"><span class="keyword">USER</span> <span class="number">65532</span>:<span class="number">65532</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>构建并上传到仓库</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">docker build -t songjl0818/podsidecardemo:v1 .</span><br><span class="line">docker push songjl0818/podsidecardemo:v1</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>功能验证：</p>
+<ul>
+<li><p><code>webhook</code> 需要证书，，推荐采用 <code>cert manager</code> 进行管理。<code>cert manager</code>  的使用本篇不做介绍。<code>kubebuilder</code> 生成的资源清单也给我们生成了采用自签证书的相关资源：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">---</span><br><span class="line">apiVersion: cert-manager.io/v1</span><br><span class="line">kind: Certificate</span><br><span class="line">metadata:</span><br><span class="line">  name: pod-sidercar-webhook-serving-cert</span><br><span class="line">  namespace: pod-sidercar-webhook-system</span><br><span class="line">spec:</span><br><span class="line">  dnsNames:</span><br><span class="line">  - pod-sidercar-webhook-webhook-service.pod-sidercar-webhook-system.svc</span><br><span class="line">  - pod-sidercar-webhook-webhook-service.pod-sidercar-webhook-system.svc.cluster.local</span><br><span class="line">  issuerRef:</span><br><span class="line">    kind: Issuer</span><br><span class="line">    name: pod-sidercar-webhook-selfsigned-issuer</span><br><span class="line">  secretName: webhook-server-cert</span><br><span class="line">---</span><br><span class="line">apiVersion: cert-manager.io/v1</span><br><span class="line">kind: Issuer</span><br><span class="line">metadata:</span><br><span class="line">  name: pod-sidercar-webhook-selfsigned-issuer</span><br><span class="line">  namespace: pod-sidercar-webhook-system</span><br><span class="line">spec:</span><br><span class="line">  selfSigned: &#123;&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>验证一下证书，我们可以看到证书已经生成好了：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">[root@hy-master01 ~]# kubectl get issuer -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                     READY   AGE</span><br><span class="line">pod-sidercar-webhook-selfsigned-issuer   True    35m</span><br><span class="line">[root@hy-master01 ~]# kubectl get certificate -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                READY   SECRET                AGE</span><br><span class="line">pod-sidercar-webhook-serving-cert   True    webhook-server-cert   35m</span><br><span class="line">[root@hy-master01 ~]# kubectl get secrets -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                                  TYPE                                  DATA   AGE</span><br><span class="line">default-token-l74zf                                   kubernetes.io/service-account-token   3      35m</span><br><span class="line">pod-sidercar-webhook-controller-manager-token-rmdzw   kubernetes.io/service-account-token   3      35m</span><br><span class="line">webhook-server-cert                                   kubernetes.io/tls                     3      35m</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>部署<code>webhook</code> ：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 利用生成的资源清单一键部署</span></span><br><span class="line">kubectl apply -f pod-sidercar-webhook.yaml</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看部署是否成功</span></span><br><span class="line">[root@hy-master01 ~]# kubectl get pod -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                                       READY   STATUS    RESTARTS   AGE</span><br><span class="line">pod-sidercar-webhook-controller-manager-865fcdf647-v6jfq   2/2     Running   0          38m</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>这是框架自动生成的资源清单，实际部署过程中，我们也可增加 <code>namespaceSelector</code> 字段来控制是否使用这个<code>webhook</code>：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">---</span><br><span class="line">apiVersion: admissionregistration.k8s.io/v1</span><br><span class="line">kind: MutatingWebhookConfiguration</span><br><span class="line">metadata:</span><br><span class="line">  annotations:</span><br><span class="line">    cert-manager.io/inject-ca-from: pod-sidercar-webhook-system/pod-sidercar-webhook-serving-cert</span><br><span class="line">  name: pod-sidercar-webhook-mutating-webhook-configuration</span><br><span class="line">webhooks:</span><br><span class="line">- admissionReviewVersions:</span><br><span class="line">  - v1</span><br><span class="line">  - v1beta1</span><br><span class="line">  clientConfig:</span><br><span class="line">    service:</span><br><span class="line">      name: pod-sidercar-webhook-webhook-service</span><br><span class="line">      namespace: pod-sidercar-webhook-system</span><br><span class="line">      path: /mutate-core-v1-pod</span><br><span class="line">  failurePolicy: Fail</span><br><span class="line">  name: mpod.kb.io</span><br><span class="line">  rules:</span><br><span class="line">  - apiGroups:</span><br><span class="line">    - ""</span><br><span class="line">    apiVersions:</span><br><span class="line">    - v1</span><br><span class="line">    operations:</span><br><span class="line">    - CREATE</span><br><span class="line">    - UPDATE</span><br><span class="line">    resources:</span><br><span class="line">    - pods</span><br><span class="line">  sideEffects: None</span><br><span class="line">  </span><br><span class="line"> ---</span><br><span class="line"><span class="meta"> #</span><span class="bash"> 这是选择 ns 的字段，根据需要实施</span></span><br><span class="line">  namespaceSelector:</span><br><span class="line">    matchLabels:</span><br><span class="line">      pod-admission-webhook-injection: enabled</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>功能验证：</p>
+<ul>
+<li><p>创建一个pod:</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">cat &lt;&lt;EOF &gt; test-webhook.yaml</span><br><span class="line">apiVersion: v1</span><br><span class="line">kind: Pod</span><br><span class="line">metadata:</span><br><span class="line">  name: "test-webhook"</span><br><span class="line">  namespace: default</span><br><span class="line">  labels:</span><br><span class="line">    app: "test-webhook"</span><br><span class="line">spec:</span><br><span class="line">  containers:</span><br><span class="line">  - name: test-webhook</span><br><span class="line">    image: "centos:7.9.2009"</span><br><span class="line">    command:</span><br><span class="line">      - sleep</span><br><span class="line">      - "3600"</span><br><span class="line">    resources:</span><br><span class="line">      limits:</span><br><span class="line">        cpu: 200m</span><br><span class="line">        memory: 500Mi</span><br><span class="line">      requests:</span><br><span class="line">        cpu: 100m</span><br><span class="line">        memory: 200Mi</span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line">kubect apply -f test-webhook.yaml</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>查看这个 <code>pod</code> ，可以看到<code>pod</code> 多了一个容器，说明 <code>sidecar</code> 生效了，在下图中也可以看到，代码中的<code>nginx</code> 容器已经自动添加到<code>pod</code>当中了：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">[root@hy-master01 ~]# kubectl get pod</span><br><span class="line">NAME                          READY   STATUS    RESTARTS   AGE</span><br><span class="line">test-webhook                  2/2     Running   0          33m</span><br></pre></td></tr></table></figure>
+
+<p><img src="%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook%5Cwebhook.jpg" alt="webhook"></p>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+]]></content>
+      <categories>
+        <category>工作</category>
+      </categories>
+      <tags>
+        <tag>kubernetes</tag>
+        <tag>go</tag>
+        <tag>devops</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Hello World</title>
     <url>/2020/04/27/hello-world/</url>
     <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
