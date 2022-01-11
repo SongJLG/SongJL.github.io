@@ -166,6 +166,8 @@
     <url>/2022/01/12/prometheus-exporter%E5%BC%80%E5%8F%91/</url>
     <content><![CDATA[<h2 id="prometheus-operator-开发"><a href="#prometheus-operator-开发" class="headerlink" title="prometheus operator 开发"></a><code>prometheus operator</code> 开发</h2><p><code>Exporter</code> 本身是一个 <code>http</code> 服务，其指标结果只要符合 <code>Prometheus</code> 规范就可以被 <code>Prometheus</code> 使用。而 <code>prometheus</code> 提供了一个<code>go</code>语言的包来简化开发工作。</p>
 <h3 id="client-golang"><a href="#client-golang" class="headerlink" title="client_golang"></a><code>client_golang</code></h3><p><code>Prometheus</code> 的 <code>client</code>库提供了实现自定义<code>Exportor</code>的接口，<code>Collector</code>接口定义了两个方法 <code>Describe</code> 和 <code>Collect</code>，实现这两个方法就可以暴露自定义的数据：</p>
+<a id="more"></a>
+
 <ul>
 <li><code>Describe(chan&lt;- *Desc)</code></li>
 <li><code>Collect(chan&lt;- Metric)</code></li>
