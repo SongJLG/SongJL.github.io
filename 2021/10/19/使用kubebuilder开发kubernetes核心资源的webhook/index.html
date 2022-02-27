@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/pipe_32x32.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/pipe_16x16.jpg">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"songjlg.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":true,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="kubernetes 的准入控制器的开发，通常情况下要么使用 go 的 net&#x2F;http 开发http 服务端来实现逻辑，更简单的方法是使用 conntronl-runtime 实现。  我们用 kubebuilder 来开发 k8s operator 的时候，可以生成自定义资源的  webhook ，同时也能方便的生成资源清单。但无论是 kubebuilder 还是 operator-sdk">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用kubebuilder开发kubernetes核心资源的webhook">
+<meta property="og:url" content="https://songjlg.github.io/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/index.html">
+<meta property="og:site_name" content="老 宋">
+<meta property="og:description" content="kubernetes 的准入控制器的开发，通常情况下要么使用 go 的 net&#x2F;http 开发http 服务端来实现逻辑，更简单的方法是使用 conntronl-runtime 实现。  我们用 kubebuilder 来开发 k8s operator 的时候，可以生成自定义资源的  webhook ，同时也能方便的生成资源清单。但无论是 kubebuilder 还是 operator-sdk">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://songjlg.github.io/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/webhook.jpg">
+<meta property="article:published_time" content="2021-10-19T12:31:38.000Z">
+<meta property="article:modified_time" content="2021-10-21T13:26:29.882Z">
+<meta property="article:author" content="JL Song">
+<meta property="article:tag" content="go">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="devops">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://songjlg.github.io/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/webhook.jpg">
+
+<link rel="canonical" href="https://songjlg.github.io/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>使用kubebuilder开发kubernetes核心资源的webhook | 老 宋</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">老 宋</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">人生最难是相逢，各位珍重！</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">21</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">10</span></a>
+
+  </li>
+        <li class="menu-item menu-item-schedule">
+
+    <a href="/schedule/" rel="section"><i class="fa fa-calendar fa-fw"></i>日程表</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://songjlg.github.io/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/horse.jpg">
+      <meta itemprop="name" content="JL Song">
+      <meta itemprop="description" content="儿当成名酒须醉">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="老 宋">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用kubebuilder开发kubernetes核心资源的webhook
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-10-19 20:31:38" itemprop="dateCreated datePublished" datetime="2021-10-19T20:31:38+08:00">2021-10-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-10-21 21:26:29" itemprop="dateModified" datetime="2021-10-21T21:26:29+08:00">2021-10-21</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C/" itemprop="url" rel="index"><span itemprop="name">工作</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/" itemprop="url" rel="index"><span itemprop="name">云原生</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <ul>
+<li><p><code>kubernetes</code> 的准入控制器的开发，通常情况下要么使用 <code>go</code> 的 <code>net/http</code> 开发<code>http</code> 服务端来实现逻辑，更简单的方法是使用 <code>conntronl-runtime</code> 实现。</p>
+</li>
+<li><p>我们用 <code>kubebuilder</code> 来开发 <code>k8s operator</code> 的时候，可以生成自定义资源的  <code>webhook</code> ，同时也能方便的生成资源清单。但无论是 <code>kubebuilder</code> 还是 <code>operator-sdk</code> 框架都无法实现 <code>core type</code> 资源的 <code>webhook</code> 。<code>kubebuiler</code> 的官方文档提到了 <code>core type webbook</code> 的开发，但并未具体提供具体的开发指导。</p>
+</li>
+<li><p>那么如何利用 <code>kubebuiler</code> 来简化核心资源准入控制器的开发？下面就探索了一种方式。</p>
+</li>
+</ul>
+<a id="more"></a>
+
+
+<h3 id="按照一般CRD开发方式生成代码框架"><a href="#按照一般CRD开发方式生成代码框架" class="headerlink" title="按照一般CRD开发方式生成代码框架"></a>按照一般<code>CRD</code>开发方式生成代码框架</h3><ul>
+<li><p>对于 <code>kubebuilder</code> 的使用这里不做赘述；</p>
+</li>
+<li><p>生成代码框架：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 创建文件夹</span></span><br><span class="line">mkdir pod-sidercar-webhook</span><br><span class="line">go mod init github.com/songjl/podwebhookdemo</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 申城代码框架</span></span><br><span class="line">[root@Docker pod-sidercar-webhook]# kubebuilder init --domain songjl.com --license none --owner "JLSong"</span><br><span class="line">Writing kustomize manifests for you to edit...</span><br><span class="line">Writing scaffold for you to edit...</span><br><span class="line">Get controller runtime:</span><br><span class="line"><span class="meta">$</span><span class="bash"> go get sigs.k8s.io/controller-runtime@v0.8.3</span></span><br><span class="line">Update dependencies:</span><br><span class="line"><span class="meta">$</span><span class="bash"> go mod tidy</span></span><br><span class="line">Next: define a resource with:</span><br><span class="line"><span class="meta">$</span><span class="bash"> kubebuilder create api</span></span><br><span class="line"></span><br><span class="line">[root@Docker pod-sidercar-webhook]# go get sigs.k8s.io/controller-runtime@v0.8.3</span><br><span class="line">[root@Docker pod-sidercar-webhook]# go mod tidy</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 生成api，这里注意，我们要创建的是核心资源的 webhook，所以不需要生成 Resource 和 Controller</span></span><br><span class="line">[root@Docker pod-sidercar-webhook]# kubebuilder create api --group core --version v1 --kind Pod</span><br><span class="line">Create Resource [y/n]</span><br><span class="line">n</span><br><span class="line">Create Controller [y/n]</span><br><span class="line">n</span><br><span class="line">Writing kustomize manifests for you to edit...</span><br><span class="line">Writing scaffold for you to edit...</span><br><span class="line">Update dependencies:</span><br><span class="line"><span class="meta">$</span><span class="bash"> go mod tidy</span></span><br><span class="line"></span><br><span class="line">[root@Docker pod-sidercar-webhook]# go mod tidy</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>接下来，生成 <code>webhook</code>。</p>
+<ul>
+<li><p>在 <code>kubernetes</code> 中，有下面三种 <code>webhook</code>：<code>admission webhook</code>， <code>authorization webhook</code> 和 <code>CRD conversion webhook</code>。</p>
+</li>
+<li><p>在 <code>controller-runtime</code> 库中，支持 <code>admission webhooks</code> 和 <code>CRD conversion webhooks</code>；</p>
+</li>
+<li><p>而在准入 <code>admission webhooks</code> ，有两个阶段：<code>validate</code> 准入阶段，判断资源是否符合规范；<code>mutate</code> 阶段，会在资源上 打上相应补丁；</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> defaulting 是 mutate 阶段的webhook，programmatic-validation 是 validate 阶段的 webhook，在demo种我们实现 mutate 的 webhook</span></span><br><span class="line">[root@Docker pod-sidercar-webhook]# kubebuilder create webhook --group core --version v1 --kind Pod --defaulting --webhook-version v1</span><br><span class="line">Writing kustomize manifests for you to edit...</span><br><span class="line">Writing scaffold for you to edit...</span><br><span class="line">api/v1/pod_webhook.go</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>通过以上步骤，我们代码框架就生成了，目录结构如下，下面就是修改和<code>codeding</code> ；</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">[root@Docker pod-sidercar-webhook]# tree -L 2</span><br><span class="line">.</span><br><span class="line">├── api</span><br><span class="line">│   └── v1</span><br><span class="line">├── config</span><br><span class="line">│   ├── certmanager</span><br><span class="line">│   ├── default</span><br><span class="line">│   ├── manager</span><br><span class="line">│   ├── prometheus</span><br><span class="line">│   ├── rbac</span><br><span class="line">│   └── webhook</span><br><span class="line">├── Dockerfile</span><br><span class="line">├── go.mod</span><br><span class="line">├── go.sum</span><br><span class="line">├── hack</span><br><span class="line">│   └── boilerplate.go.txt</span><br><span class="line">├── main.go</span><br><span class="line">├── Makefile</span><br><span class="line">└── PROJECT</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<h3 id="修改代码框架"><a href="#修改代码框架" class="headerlink" title="修改代码框架"></a>修改代码框架</h3><ul>
+<li><p>由于我们并没有生成控制器和资源，所以相应的资源清单要做一些修改;</p>
+<ul>
+<li><p>对于  <code>config/default/kustomization.yaml</code> 打开相应的<code>webhook</code> 的开关，删除 <code>crd</code> 资源；</p>
+</li>
+<li><p>对于 <code>config/default/webhookcainjection_patch.yaml</code> ，删除 <code>validate</code> 部分：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 对于该文件来说，因为在demo中只有 matute webhook，所以要做相应的删除，同样的，如果两种 webhook都有，那么该文件则不需改动</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> This patch add annotation to admission webhook config and</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> the variables $(CERTIFICATE_NAMESPACE) and $(CERTIFICATE_NAME) will be substituted by kustomize.</span></span><br><span class="line">apiVersion: admissionregistration.k8s.io/v1</span><br><span class="line">kind: MutatingWebhookConfiguration</span><br><span class="line">metadata:</span><br><span class="line">  name: mutating-webhook-configuration</span><br><span class="line">  annotations:</span><br><span class="line">    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)</span><br><span class="line"><span class="meta">#</span><span class="bash"> ---</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> apiVersion: admissionregistration.k8s.io/v1</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> kind: ValidatingWebhookConfiguration</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> metadata:</span></span><br><span class="line"><span class="meta">#</span><span class="bash">   name: validating-webhook-configuration</span></span><br><span class="line"><span class="meta">#</span><span class="bash">   annotations:</span></span><br><span class="line"><span class="meta">#</span><span class="bash">     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>在 <code>config/rbac/kustomization.yaml</code> 中，删除<code>role</code> ：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">resources:</span><br><span class="line"><span class="meta">#</span><span class="bash"> All RBAC will be applied under this service account <span class="keyword">in</span></span></span><br><span class="line"><span class="meta">#</span><span class="bash"> the deployment namespace. You may comment out this resource</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> <span class="keyword">if</span> your manager will use a service account that exists at</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> runtime. Be sure to update RoleBinding and ClusterRoleBinding</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> subjects <span class="keyword">if</span> changing service account names.</span></span><br><span class="line">- service_account.yaml</span><br><span class="line"><span class="meta">#</span><span class="bash"> - role.yaml</span></span><br><span class="line">- role_binding.yaml</span><br><span class="line">- leader_election_role.yaml</span><br><span class="line">- leader_election_role_binding.yaml</span><br><span class="line"><span class="meta">#</span><span class="bash"> Comment the following 4 lines <span class="keyword">if</span> you want to <span class="built_in">disable</span></span></span><br><span class="line"><span class="meta">#</span><span class="bash"> the auth proxy (https://github.com/brancz/kube-rbac-proxy)</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> <span class="built_in">which</span> protects your /metrics endpoint.</span></span><br><span class="line">- auth_proxy_service.yaml</span><br><span class="line">- auth_proxy_role.yaml</span><br><span class="line">- auth_proxy_role_binding.yaml</span><br><span class="line">- auth_proxy_client_clusterrole.yaml</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>修改完之后，手动生成一下资源清单，做一下测试：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 先生成 manifests</span></span><br><span class="line">make manifests</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 生成完整的资源清单</span></span><br><span class="line">kustomize build config/default/ &gt; pod-sidercar-webhook.yaml</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h3 id="实现代码逻辑"><a href="#实现代码逻辑" class="headerlink" title="实现代码逻辑"></a>实现代码逻辑</h3><ul>
+<li><p>修改 <code>main.go</code>  ：</p>
+<ul>
+<li><p>删除 <code>SetupWebhookWithManager</code> 方法；</p>
+</li>
+<li><p>注册<code>webhook</code> ：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">Copyright 2021 SongJL.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// mgr.GetWebhookServer().Register("/mutate-core-v1-pod", &amp;webhook.Admission&#123;Handler: v1.NewPodSideCarMutate(mgr.GetClient())&#125;)</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">"flag"</span></span><br><span class="line">    <span class="string">"os"</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)</span></span><br><span class="line">    <span class="comment">// to ensure that exec-entrypoint and run can make use of them.</span></span><br><span class="line">    <span class="string">"github.com/songjl/podwebhookdemo/api/v1"</span></span><br><span class="line">    <span class="string">"k8s.io/apimachinery/pkg/runtime"</span></span><br><span class="line">    utilruntime <span class="string">"k8s.io/apimachinery/pkg/util/runtime"</span></span><br><span class="line">    clientgoscheme <span class="string">"k8s.io/client-go/kubernetes/scheme"</span></span><br><span class="line">    ctrl <span class="string">"sigs.k8s.io/controller-runtime"</span></span><br><span class="line">    <span class="string">"sigs.k8s.io/controller-runtime/pkg/webhook"</span></span><br><span class="line">    <span class="string">"sigs.k8s.io/controller-runtime/pkg/healthz"</span></span><br><span class="line">    <span class="string">"sigs.k8s.io/controller-runtime/pkg/log/zap"</span></span><br><span class="line">    <span class="comment">//+kubebuilder:scaffold:imports</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">    scheme   = runtime.NewScheme()</span><br><span class="line">    setupLog = ctrl.Log.WithName(<span class="string">"setup"</span>)</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">    utilruntime.Must(clientgoscheme.AddToScheme(scheme))</span><br><span class="line"></span><br><span class="line">    <span class="comment">//+kubebuilder:scaffold:scheme</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> metricsAddr <span class="keyword">string</span></span><br><span class="line">    <span class="keyword">var</span> enableLeaderElection <span class="keyword">bool</span></span><br><span class="line">    <span class="keyword">var</span> probeAddr <span class="keyword">string</span></span><br><span class="line">    flag.StringVar(&amp;metricsAddr, <span class="string">"metrics-bind-address"</span>, <span class="string">":8080"</span>, <span class="string">"The address the metric endpoint binds to."</span>)</span><br><span class="line">    flag.StringVar(&amp;probeAddr, <span class="string">"health-probe-bind-address"</span>, <span class="string">":8081"</span>, <span class="string">"The address the probe endpoint binds to."</span>)</span><br><span class="line">    flag.BoolVar(&amp;enableLeaderElection, <span class="string">"leader-elect"</span>, <span class="literal">false</span>,</span><br><span class="line">        <span class="string">"Enable leader election for controller manager. "</span>+</span><br><span class="line">            <span class="string">"Enabling this will ensure there is only one active controller manager."</span>)</span><br><span class="line">    opts := zap.Options&#123;</span><br><span class="line">        Development: <span class="literal">true</span>,</span><br><span class="line">    &#125;</span><br><span class="line">    opts.BindFlags(flag.CommandLine)</span><br><span class="line">    flag.Parse()</span><br><span class="line"></span><br><span class="line">    ctrl.SetLogger(zap.New(zap.UseFlagOptions(&amp;opts)))</span><br><span class="line"></span><br><span class="line">    mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options&#123;</span><br><span class="line">        Scheme:                 scheme,</span><br><span class="line">        MetricsBindAddress:     metricsAddr,</span><br><span class="line">        Port:                   <span class="number">9443</span>,</span><br><span class="line">        HealthProbeBindAddress: probeAddr,</span><br><span class="line">        LeaderElection:         enableLeaderElection,</span><br><span class="line">        LeaderElectionID:       <span class="string">"c4e7e7ef.developer.guy"</span>,</span><br><span class="line">    &#125;)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        setupLog.Error(err, <span class="string">"unable to start manager"</span>)</span><br><span class="line">        os.Exit(<span class="number">1</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    mgr.GetWebhookServer().Register(<span class="string">"/mutate-core-v1-pod"</span>, &amp;webhook.Admission&#123;Handler: v1.NewPodSideCarMutate(mgr.GetClient())&#125;)</span><br><span class="line"></span><br><span class="line">    <span class="comment">//+kubebuilder:scaffold:builder</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> err := mgr.AddHealthzCheck(<span class="string">"healthz"</span>, healthz.Ping); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        setupLog.Error(err, <span class="string">"unable to set up health check"</span>)</span><br><span class="line">        os.Exit(<span class="number">1</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> err := mgr.AddReadyzCheck(<span class="string">"readyz"</span>, healthz.Ping); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        setupLog.Error(err, <span class="string">"unable to set up ready check"</span>)</span><br><span class="line">        os.Exit(<span class="number">1</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    setupLog.Info(<span class="string">"starting manager"</span>)</span><br><span class="line">    <span class="keyword">if</span> err := mgr.Start(ctrl.SetupSignalHandler()); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        setupLog.Error(err, <span class="string">"problem running manager"</span>)</span><br><span class="line">        os.Exit(<span class="number">1</span>)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li><p>代码逻辑，需要实现 <code>Handler</code> 方法：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">Copyright 2021 SongJL.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">package</span> v1</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">"context"</span></span><br><span class="line">    <span class="string">"encoding/json"</span></span><br><span class="line">    <span class="string">"net/http"</span></span><br><span class="line"></span><br><span class="line">    corev1 <span class="string">"k8s.io/api/core/v1"</span></span><br><span class="line">    <span class="string">"sigs.k8s.io/controller-runtime/pkg/client"</span></span><br><span class="line">    <span class="string">"sigs.k8s.io/controller-runtime/pkg/webhook/admission"</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// +kubebuilder:webhook:verbs=create;update,path=/mutate-core-v1-pod,validating=false,failurePolicy=fail,groups=core,resources=pods,versions=v1,name=vpod.kb.io</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// PodSideCarMutate mutate Pods</span></span><br><span class="line"><span class="keyword">type</span> PodSidecarMutate <span class="keyword">struct</span> &#123;</span><br><span class="line">    Client  client.Client</span><br><span class="line">    decoder *admission.Decoder</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewPodSideCarMutate</span><span class="params">(c client.Client)</span> <span class="title">admission</span>.<span class="title">Handler</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;PodSidecarMutate&#123;Client: c&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// PodSideCarMutate admits a pod if a specific annotation exists.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v *PodSidecarMutate)</span> <span class="title">Handle</span><span class="params">(ctx context.Context, req admission.Request)</span> <span class="title">admission</span>.<span class="title">Response</span></span> &#123;</span><br><span class="line">    <span class="comment">// TODO</span></span><br><span class="line"></span><br><span class="line">    pod := &amp;corev1.Pod&#123;&#125;</span><br><span class="line"></span><br><span class="line">    err := v.decoder.Decode(req, pod)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> admission.Errored(http.StatusBadRequest, err)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    sidecar := corev1.Container&#123;</span><br><span class="line">        Name:            <span class="string">"nginx"</span>,</span><br><span class="line">        Image:           <span class="string">"nginx:1.16"</span>,</span><br><span class="line">        ImagePullPolicy: corev1.PullIfNotPresent,</span><br><span class="line">        Ports: []corev1.ContainerPort&#123;</span><br><span class="line">                    &#123;</span><br><span class="line">                        Name: <span class="string">"http"</span>,</span><br><span class="line">                        ContainerPort: <span class="number">80</span>,</span><br><span class="line">                    &#125;,</span><br><span class="line">                &#125;,</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    pod.Spec.Containers = <span class="built_in">append</span>(pod.Spec.Containers, sidecar)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    marshaledPod, err := json.Marshal(pod)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> admission.Errored(http.StatusInternalServerError, err)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// PodSideCarMutate implements admission.DecoderInjector.</span></span><br><span class="line"><span class="comment">// A decoder will be automatically injected.</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// InjectDecoder injects the decoder.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v *PodSidecarMutate)</span> <span class="title">InjectDecoder</span><span class="params">(d *admission.Decoder)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    v.decoder = d</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h3 id="构建镜像并测试"><a href="#构建镜像并测试" class="headerlink" title="构建镜像并测试"></a>构建镜像并测试</h3><ul>
+<li><p>构建镜像：</p>
+<ul>
+<li><p>国内网络原因，因此我们对生成的 <code>Dockerfile</code> 做修改，这是一个多阶段构建的<code>Dockferile</code>:</p>
+</li>
+<li><p>核心资源无需自定义控制器，我们也没有生成，修改；</p>
+</li>
+<li><p>网络问题，添加 <code>goproxy</code> ，修改 <code>gcr</code> 仓库的镜像；</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Build the manager binary</span></span><br><span class="line"><span class="keyword">FROM</span> golang:<span class="number">1.16</span> as builder</span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /workspace</span></span><br><span class="line"><span class="comment"># Copy the Go Modules manifests</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.mod go.mod</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> go.sum go.sum</span></span><br><span class="line"><span class="comment"># cache deps before building and copying source so that we don't need to re-download as much</span></span><br><span class="line"><span class="comment"># and so that source changes don't invalidate our downloaded layer</span></span><br><span class="line"><span class="comment"># RUN GOPROXY=https://goproxy.cn &amp;&amp; go mod download</span></span><br><span class="line"><span class="comment"># 修改gopxory</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> go env -w GOPROXY=https://goproxy.cn &amp;&amp;　go mod download</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Copy the go source</span></span><br><span class="line"><span class="comment"># 无需控制器</span></span><br><span class="line"><span class="comment"># COPY controllers/ controllers/</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> main.go main.go</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> api/ api/</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Build</span></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Use distroless as minimal base image to package the manager binary</span></span><br><span class="line"><span class="comment"># Refer to https://github.com/GoogleContainerTools/distroless for more details</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># gcr的镜像国内无法拉取，修改成docker hub上的</span></span><br><span class="line"><span class="keyword">FROM</span> katanomi/distroless-static:nonroot</span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /</span></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> --from=builder /workspace/manager .</span></span><br><span class="line"><span class="keyword">USER</span> <span class="number">65532</span>:<span class="number">65532</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>构建并上传到仓库</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">docker build -t songjl0818/podsidecardemo:v1 .</span><br><span class="line">docker push songjl0818/podsidecardemo:v1</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+</li>
+<li><p>功能验证：</p>
+<ul>
+<li><p><code>webhook</code> 需要证书，，推荐采用 <code>cert manager</code> 进行管理。<code>cert manager</code>  的使用本篇不做介绍。<code>kubebuilder</code> 生成的资源清单也给我们生成了采用自签证书的相关资源：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">cert-manager.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Certificate</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">pod-sidercar-webhook-serving-cert</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">pod-sidercar-webhook-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">dnsNames:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">pod-sidercar-webhook-webhook-service.pod-sidercar-webhook-system.svc</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">pod-sidercar-webhook-webhook-service.pod-sidercar-webhook-system.svc.cluster.local</span></span><br><span class="line">  <span class="attr">issuerRef:</span></span><br><span class="line">    <span class="attr">kind:</span> <span class="string">Issuer</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">pod-sidercar-webhook-selfsigned-issuer</span></span><br><span class="line">  <span class="attr">secretName:</span> <span class="string">webhook-server-cert</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">cert-manager.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Issuer</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">pod-sidercar-webhook-selfsigned-issuer</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">pod-sidercar-webhook-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selfSigned:</span> <span class="string">&#123;&#125;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>验证一下证书，我们可以看到证书已经生成好了：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[root@hy-master01 ~]# kubectl get issuer -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                     READY   AGE</span><br><span class="line">pod-sidercar-webhook-selfsigned-issuer   True    35m</span><br><span class="line">[root@hy-master01 ~]# kubectl get certificate -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                READY   SECRET                AGE</span><br><span class="line">pod-sidercar-webhook-serving-cert   True    webhook-server-cert   35m</span><br><span class="line">[root@hy-master01 ~]# kubectl get secrets -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                                  TYPE                                  DATA   AGE</span><br><span class="line">default-token-l74zf                                   kubernetes.io/service-account-token   3      35m</span><br><span class="line">pod-sidercar-webhook-controller-manager-token-rmdzw   kubernetes.io/service-account-token   3      35m</span><br><span class="line">webhook-server-cert                                   kubernetes.io/tls                     3      35m</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>部署<code>webhook</code> ：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 利用生成的资源清单一键部署</span></span><br><span class="line">kubectl apply -f pod-sidercar-webhook.yaml</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看部署是否成功</span></span><br><span class="line">[root@hy-master01 ~]# kubectl get pod -n pod-sidercar-webhook-system</span><br><span class="line">NAME                                                       READY   STATUS    RESTARTS   AGE</span><br><span class="line">pod-sidercar-webhook-controller-manager-865fcdf647-v6jfq   2/2     Running   0          38m</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>这是框架自动生成的资源清单，实际部署过程中，我们也可增加 <code>namespaceSelector</code> 字段来控制是否使用这个<code>webhook</code>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">admissionregistration.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">MutatingWebhookConfiguration</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">cert-manager.io/inject-ca-from:</span> <span class="string">pod-sidercar-webhook-system/pod-sidercar-webhook-serving-cert</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">pod-sidercar-webhook-mutating-webhook-configuration</span></span><br><span class="line"><span class="attr">webhooks:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">admissionReviewVersions:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">v1</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">v1beta1</span></span><br><span class="line">  <span class="attr">clientConfig:</span></span><br><span class="line">    <span class="attr">service:</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">pod-sidercar-webhook-webhook-service</span></span><br><span class="line">      <span class="attr">namespace:</span> <span class="string">pod-sidercar-webhook-system</span></span><br><span class="line">      <span class="attr">path:</span> <span class="string">/mutate-core-v1-pod</span></span><br><span class="line">  <span class="attr">failurePolicy:</span> <span class="string">Fail</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">mpod.kb.io</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">apiGroups:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">""</span></span><br><span class="line">    <span class="attr">apiVersions:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">v1</span></span><br><span class="line">    <span class="attr">operations:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">CREATE</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">UPDATE</span></span><br><span class="line">    <span class="attr">resources:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">pods</span></span><br><span class="line">  <span class="attr">sideEffects:</span> <span class="string">None</span></span><br><span class="line">  </span><br><span class="line"> <span class="string">---</span></span><br><span class="line"> <span class="comment"># 这是选择 ns 的字段，根据需要实施</span></span><br><span class="line">  <span class="attr">namespaceSelector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">pod-admission-webhook-injection:</span> <span class="string">enabled</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>功能验证：</p>
+<ul>
+<li><p>创建一个pod:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">cat &lt;&lt;EOF &gt; test-webhook.yaml</span><br><span class="line">apiVersion: v1</span><br><span class="line">kind: Pod</span><br><span class="line">metadata:</span><br><span class="line">  name: "test-webhook"</span><br><span class="line">  namespace: default</span><br><span class="line">  labels:</span><br><span class="line">    app: "test-webhook"</span><br><span class="line">spec:</span><br><span class="line">  containers:</span><br><span class="line">  - name: test-webhook</span><br><span class="line">    image: "centos:7.9.2009"</span><br><span class="line">    command:</span><br><span class="line">      - sleep</span><br><span class="line">      - "3600"</span><br><span class="line">    resources:</span><br><span class="line">      limits:</span><br><span class="line">        cpu: 200m</span><br><span class="line">        memory: 500Mi</span><br><span class="line">      requests:</span><br><span class="line">        cpu: 100m</span><br><span class="line">        memory: 200Mi</span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line">kubect apply -f test-webhook.yaml</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>查看这个 <code>pod</code> ，可以看到<code>pod</code> 多了一个容器，说明 <code>sidecar</code> 生效了，在下图中也可以看到，代码中的<code>nginx</code> 容器已经自动添加到<code>pod</code>当中了：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[root@hy-master01 ~]# kubectl get pod</span><br><span class="line">NAME                          READY   STATUS    RESTARTS   AGE</span><br><span class="line">test-webhook                  2/2     Running   0          33m</span><br></pre></td></tr></table></figure>
+
+<p><img src="webhook.jpg" alt="webhook"></p>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>JL Song
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://songjlg.github.io/2021/10/19/%E4%BD%BF%E7%94%A8kubebuilder%E5%BC%80%E5%8F%91kubernetes%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%9A%84webhook/" title="使用kubebuilder开发kubernetes核心资源的webhook">https://songjlg.github.io/2021/10/19/使用kubebuilder开发kubernetes核心资源的webhook/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/zh-CN" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="https://twitter.com/laosongbond">
+            <span class="icon">
+              <i class="fab fa-twitter"></i>
+            </span>
+
+            <span class="label">Twitter</span>
+          </a>
+        </div>
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="/images/wechat_company.jpg">
+            <span class="icon">
+              <i class="fab fa-weixin"></i>
+            </span>
+
+            <span class="label">WeChat</span>
+          </a>
+        </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          
+          <div class="post-tags">
+              <a href="/tags/go/" rel="tag"><i class="fa fa-tag"></i> go</a>
+              <a href="/tags/kubernetes/" rel="tag"><i class="fa fa-tag"></i> kubernetes</a>
+              <a href="/tags/devops/" rel="tag"><i class="fa fa-tag"></i> devops</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2021/10/20/%E4%BD%BF%E7%94%A8OPA-Gatekeeper%E4%BD%9C%E4%B8%BAkubernetes%E7%AD%96%E7%95%A5%E7%AE%A1%E7%90%86%E5%BC%95%E6%93%8E/" rel="next" title="使用OPA Gatekeeper作为kubernetes策略管理引擎">
+      使用OPA Gatekeeper作为kubernetes策略管理引擎 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#按照一般CRD开发方式生成代码框架"><span class="nav-number">1.</span> <span class="nav-text">按照一般CRD开发方式生成代码框架</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#修改代码框架"><span class="nav-number">2.</span> <span class="nav-text">修改代码框架</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#实现代码逻辑"><span class="nav-number">3.</span> <span class="nav-text">实现代码逻辑</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#构建镜像并测试"><span class="nav-number">4.</span> <span class="nav-text">构建镜像并测试</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="JL Song"
+      src="/images/horse.jpg">
+  <p class="site-author-name" itemprop="name">JL Song</p>
+  <div class="site-description" itemprop="description">儿当成名酒须醉</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/SongJLG" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;SongJLG" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:SongJL0818@outlook.com" title="E-Mail → mailto:SongJL0818@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/laosongbond" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;laosongbond" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i>Twitter</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://instagram.com/songjl0818" title="Instagram → https:&#x2F;&#x2F;instagram.com&#x2F;songjl0818" rel="noopener" target="_blank"><i class="fab fa-instagram fa-fw"></i>Instagram</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/zh-CN" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">JL Song</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+  <div class="addthis_inline_share_toolbox">
+    <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5ea8f30db4b1fef2" async="async"></script>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

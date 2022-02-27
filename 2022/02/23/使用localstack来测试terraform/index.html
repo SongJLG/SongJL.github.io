@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/pipe_32x32.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/pipe_16x16.jpg">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"songjlg.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":true,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="使用 localstack 来测试 terraformterraform 作为基础设置即代码的首选工具，为基础设施的自动化提供了极大便利。但是 terraform 资源清单的测试却一直没有好的办法，能 plan 成功不代表能 apply 成功。 LocalStack 是开发 JIRA 的公司 Atlassian 开发的, 用 Python “山寨”了 AWS 的 API, 通过 REST API提">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用localstack来测试terraform">
+<meta property="og:url" content="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/index.html">
+<meta property="og:site_name" content="老 宋">
+<meta property="og:description" content="使用 localstack 来测试 terraformterraform 作为基础设置即代码的首选工具，为基础设施的自动化提供了极大便利。但是 terraform 资源清单的测试却一直没有好的办法，能 plan 成功不代表能 apply 成功。 LocalStack 是开发 JIRA 的公司 Atlassian 开发的, 用 Python “山寨”了 AWS 的 API, 通过 REST API提">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/1.jpg">
+<meta property="og:image" content="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/2.jpg">
+<meta property="og:image" content="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/3.jpg">
+<meta property="og:image" content="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/4.jpg">
+<meta property="article:published_time" content="2022-02-22T16:53:02.000Z">
+<meta property="article:modified_time" content="2022-02-27T12:54:41.868Z">
+<meta property="article:author" content="JL Song">
+<meta property="article:tag" content="云原生">
+<meta property="article:tag" content="terraform">
+<meta property="article:tag" content="aws">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/1.jpg">
+
+<link rel="canonical" href="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>使用localstack来测试terraform | 老 宋</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">老 宋</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">人生最难是相逢，各位珍重！</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">21</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">10</span></a>
+
+  </li>
+        <li class="menu-item menu-item-schedule">
+
+    <a href="/schedule/" rel="section"><i class="fa fa-calendar fa-fw"></i>日程表</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/horse.jpg">
+      <meta itemprop="name" content="JL Song">
+      <meta itemprop="description" content="儿当成名酒须醉">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="老 宋">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用localstack来测试terraform
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-23 00:53:02" itemprop="dateCreated datePublished" datetime="2022-02-23T00:53:02+08:00">2022-02-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-02-27 20:54:41" itemprop="dateModified" datetime="2022-02-27T20:54:41+08:00">2022-02-27</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C/" itemprop="url" rel="index"><span itemprop="name">工作</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BF%90%E7%BB%B4/" itemprop="url" rel="index"><span itemprop="name">运维</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="使用-localstack-来测试-terraform"><a href="#使用-localstack-来测试-terraform" class="headerlink" title="使用 localstack 来测试 terraform"></a>使用 <code>localstack</code> 来测试 <code>terraform</code></h2><p><code>terraform</code> 作为基础设置即代码的首选工具，为基础设施的自动化提供了极大便利。但是 <code>terraform</code> 资源清单的测试却一直没有好的办法，能 <code>plan</code> 成功不代表能 <code>apply</code> 成功。</p>
+<p><code>LocalStack</code> 是开发 <code>JIRA</code> 的公司 <code>Atlassian</code> 开发的, 用 Python “山寨”了 <code>AWS</code> 的 <code>API</code>, 通过 <code>REST API</code>提供跟 <code>AWS</code> 一模一样的服务。</p>
+<p>那么意味着我们可用利用 <code>lcoalstack</code> 作为 <code>terraform</code> 编排 <code>aws</code> 的测试工具。</p>
+<a id="more"></a>
+
+<h3 id="localstack-部署："><a href="#localstack-部署：" class="headerlink" title="localstack 部署："></a><code>localstack</code> 部署：</h3><ul>
+<li><p>采用 <code>docker-compose</code> 进行部署：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">version:</span> <span class="string">"3.8"</span></span><br><span class="line"></span><br><span class="line"><span class="attr">services:</span></span><br><span class="line">  <span class="attr">localstack:</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">"$&#123;LOCALSTACK_DOCKER_NAME-localstack_main&#125;"</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">localstack/localstack</span></span><br><span class="line">    <span class="attr">network_mode:</span> <span class="string">bridge</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">"127.0.0.1:4510-4559:4510-4559"</span>  <span class="comment"># external service port range</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">"127.0.0.1:4566:4566"</span>            <span class="comment"># LocalStack Edge Proxy</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">SERVICES=$&#123;SERVICES-acm,apigateway</span></span><br><span class="line">          <span class="string">,cloudformation,cloudwatch,dynamodb</span></span><br><span class="line">          <span class="string">,dynamodbstreams,ec2,es,events</span></span><br><span class="line">          <span class="string">,firehose,iam,kinesis,kms,lambda,rds</span></span><br><span class="line">          <span class="string">,route53,s3,s3api,secretsmanager,ses,sns</span></span><br><span class="line">          <span class="string">,sqs,ssm,stepfunctions,sts&#125;</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">DEBUG=$&#123;DEBUG-1&#125;</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">DATA_DIR=$&#123;DATA_DIR-/tmp/localstack/data&#125;</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">LAMBDA_EXECUTOR=$&#123;LAMBDA_EXECUTOR-docker&#125;</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">HOST_TMP_FOLDER=$&#123;TMPDIR:-/tmp/&#125;localstack</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">DOCKER_HOST=unix:///var/run/docker.sock</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">"$&#123;TMPDIR:-/tmp&#125;/localstack:/tmp/localstack"</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">"/var/run/docker.sock:/var/run/docker.sock"</span></span><br><span class="line">    <span class="attr">networks:</span></span><br><span class="line">        <span class="attr">default:</span></span><br><span class="line"><span class="attr">networks:</span></span><br><span class="line">    <span class="attr">default:</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">localstack-tutorial</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>部署：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[root@Helm localstack]# docker-compose up -d</span><br><span class="line">[root@Helm localstack]# docker-compose ls</span><br><span class="line">NAME                STATUS</span><br><span class="line">localstack          running(2)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>验证：</p>
+<p><img src="1.jpg" alt=""></p>
+</li>
+</ul>
+<h3 id="terraform-测试："><a href="#terraform-测试：" class="headerlink" title="terraform 测试："></a><code>terraform</code> 测试：</h3><ul>
+<li><p>测试样例：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line">terraform &#123;</span><br><span class="line">  required_providers &#123;</span><br><span class="line">    aws = &#123;</span><br><span class="line">          source  = <span class="string">"hashicorp/aws"</span></span><br><span class="line">          version = <span class="string">"= 3.74.3"</span></span><br><span class="line">        &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line">provider <span class="string">"aws"</span> &#123;</span><br><span class="line">  region                      = <span class="string">"ap-southeast-2"</span></span><br><span class="line">  access_key                  = <span class="string">"test"</span></span><br><span class="line">  secret_key                  = <span class="string">"test"</span></span><br><span class="line">  skip_credentials_validation = <span class="literal">true</span></span><br><span class="line">  skip_metadata_api_check     = <span class="literal">true</span></span><br><span class="line">  skip_requesting_account_id  = <span class="literal">true</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 4510-4559:4510-4559</span></span><br><span class="line">  endpoints &#123;</span><br><span class="line">    acm            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    apigateway     = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    cloudformation = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    cloudwatch     = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    dynamodb       = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    ec2            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    es             = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    firehose       = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    iam            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    kinesis        = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    lambda         = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    rds            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    redshift       = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    route53        = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    s3             = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    secretsmanager = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    ses            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    sns            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    sqs            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    ssm            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    stepfunctions  = <span class="string">"http://localhost:4566"</span></span><br><span class="line">    sts            = <span class="string">"http://localhost:4566"</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">resource <span class="string">"aws_instance"</span> <span class="string">"web"</span> &#123;</span><br><span class="line">  ami           = <span class="string">"ami-123456"</span></span><br><span class="line">  instance_type = <span class="string">"t2.micro"</span></span><br><span class="line"></span><br><span class="line">  tags = &#123;</span><br><span class="line">    Name = <span class="string">"XGIT.SJL"</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>测试：</p>
+<ul>
+<li><p><code>terraform init</code></p>
+<p><img src="2.jpg" alt=""></p>
+</li>
+<li><p><code>terraform plan</code></p>
+</li>
+<li><p><code>terraform apply</code></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">[root@Helm ec2-demo]# terraform apply --auto-approve</span><br><span class="line"></span><br><span class="line">Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the</span><br><span class="line">following symbols:</span><br><span class="line">  + create</span><br><span class="line"></span><br><span class="line">Terraform will perform the following actions:</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> aws_instance.web will be created</span></span><br><span class="line">  + resource "aws_instance" "web" &#123;</span><br><span class="line">      + ami                                  = "ami-123456"</span><br><span class="line">      + arn                                  = (known after apply)</span><br><span class="line">      + associate_public_ip_address          = (known after apply)</span><br><span class="line">      + availability_zone                    = (known after apply)</span><br><span class="line">      + cpu_core_count                       = (known after apply)</span><br><span class="line">      + cpu_threads_per_core                 = (known after apply)</span><br></pre></td></tr></table></figure>
+
+<p><img src="3.jpg" alt=""></p>
+</li>
+</ul>
+</li>
+<li><p>用 <code>aws-cli</code> 查看一下创建的 <code>ec2</code> 实例，如下图所示，虚拟机实例已经存在：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[root@Helm ec2-demo]# alias aws='docker run --network localstack-tutorial -it -v ~/.aws:/root/.aws -e LOCALSTACK_HOSTNAME=localstack amazon/aws-cli --endpoint-url=http://localstack:4566'</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 在 .aws 下创建配置文件 略</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="4.jpg" alt=""></p>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>JL Song
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://songjlg.github.io/2022/02/23/%E4%BD%BF%E7%94%A8localstack%E6%9D%A5%E6%B5%8B%E8%AF%95terraform/" title="使用localstack来测试terraform">https://songjlg.github.io/2022/02/23/使用localstack来测试terraform/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/zh-CN" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="https://twitter.com/laosongbond">
+            <span class="icon">
+              <i class="fab fa-twitter"></i>
+            </span>
+
+            <span class="label">Twitter</span>
+          </a>
+        </div>
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="/images/wechat_company.jpg">
+            <span class="icon">
+              <i class="fab fa-weixin"></i>
+            </span>
+
+            <span class="label">WeChat</span>
+          </a>
+        </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          
+          <div class="post-tags">
+              <a href="/tags/%E4%BA%91%E5%8E%9F%E7%94%9F/" rel="tag"><i class="fa fa-tag"></i> 云原生</a>
+              <a href="/tags/terraform/" rel="tag"><i class="fa fa-tag"></i> terraform</a>
+              <a href="/tags/aws/" rel="tag"><i class="fa fa-tag"></i> aws</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/17/terraform-provider%E5%BC%80%E5%8F%91/" rel="prev" title="terraform provider开发">
+      <i class="fa fa-chevron-left"></i> terraform provider开发
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#使用-localstack-来测试-terraform"><span class="nav-number">1.</span> <span class="nav-text">使用 localstack 来测试 terraform</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#localstack-部署："><span class="nav-number">1.1.</span> <span class="nav-text">localstack 部署：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#terraform-测试："><span class="nav-number">1.2.</span> <span class="nav-text">terraform 测试：</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="JL Song"
+      src="/images/horse.jpg">
+  <p class="site-author-name" itemprop="name">JL Song</p>
+  <div class="site-description" itemprop="description">儿当成名酒须醉</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/SongJLG" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;SongJLG" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:SongJL0818@outlook.com" title="E-Mail → mailto:SongJL0818@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/laosongbond" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;laosongbond" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i>Twitter</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://instagram.com/songjl0818" title="Instagram → https:&#x2F;&#x2F;instagram.com&#x2F;songjl0818" rel="noopener" target="_blank"><i class="fab fa-instagram fa-fw"></i>Instagram</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/zh-CN" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">JL Song</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+  <div class="addthis_inline_share_toolbox">
+    <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5ea8f30db4b1fef2" async="async"></script>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
