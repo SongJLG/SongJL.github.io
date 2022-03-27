@@ -122,7 +122,7 @@
   </li>
         <li class="menu-item menu-item-tags">
 
-    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">21</span></a>
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">23</span></a>
 
   </li>
         <li class="menu-item menu-item-categories">
@@ -132,7 +132,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">10</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">11</span></a>
 
   </li>
         <li class="menu-item menu-item-schedule">
@@ -190,6 +190,94 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://songjlg.github.io/2021/10/21/%E5%88%A9%E7%94%A8multus-cni%E5%92%8Cmacvlan%E5%AE%9E%E7%8E%B0pod%E5%A4%9A%E7%BD%91%E5%8D%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/horse.jpg">
+      <meta itemprop="name" content="JL Song">
+      <meta itemprop="description" content="儿当成名酒须醉">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="老 宋">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/10/21/%E5%88%A9%E7%94%A8multus-cni%E5%92%8Cmacvlan%E5%AE%9E%E7%8E%B0pod%E5%A4%9A%E7%BD%91%E5%8D%A1/" class="post-title-link" itemprop="url">利用multus-cni和macvlan实现pod多网卡</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-10-21 20:16:27 / 修改时间：21:27:35" itemprop="dateCreated datePublished" datetime="2021-10-21T20:16:27+08:00">2021-10-21</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C/" itemprop="url" rel="index"><span itemprop="name">工作</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/" itemprop="url" rel="index"><span itemprop="name">云原生</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h3 id="multus-cni-介绍"><a href="#multus-cni-介绍" class="headerlink" title="multus cni 介绍"></a><code>multus cni</code> 介绍</h3><ul>
+<li><p><code>Kubernetes</code> 缺乏支持<code>VNF</code>中多个网络接口的所需功能。传统上，网络功能使用多个网络接口分离控制，管理和控制用户/数据的网络平面。他们还用于支持不同的协议，满足不同的调整和配置要求。</p>
+</li>
+<li><p>为了解决这个需求，英特尔实现了<code>MULTUS</code>的<code>CNI</code>插件，其中提供了将多个接口添加到<code>Pod</code>的功能。这允许<code>POD</code>通过不同的接口连接到多个网络，并且每个接口都将使用其自己的<code>CNI</code>插件。</p>
+</li>
+<li><p>有了<code>MULTUS</code>我们可以实现<code>kubernetes</code>高性能网络，例如<code>sr-iov dpdk</code>的方案。但这需要硬件网卡的支持。我们用<code>multus</code>和<code>macvlan</code>的方案实现<code>pod</code>多网卡的功能；</p>
+</li>
+<li><p><code>macvlan</code>是<code>linux</code>内核实现的功能，实现通用<code>pod</code>多网卡解决方案。</p>
+</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2021/10/21/%E5%88%A9%E7%94%A8multus-cni%E5%92%8Cmacvlan%E5%AE%9E%E7%8E%B0pod%E5%A4%9A%E7%BD%91%E5%8D%A1/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -525,7 +613,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-count">11</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -538,7 +626,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-count">23</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
