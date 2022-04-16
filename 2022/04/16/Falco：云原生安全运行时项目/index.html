@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/pipe_32x32.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/pipe_16x16.jpg">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"songjlg.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":true,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="Falco ：云原生安全运行时项目kube-sec CNCF 官方继 CKA 之后推出了含金量更高的 CKS 考试，聚焦于 Kubernetes 供应链安全。 k8s 整体的供应链安全大致分为以下几个方面，有时间会一一更新： 集群安全：TLS 证书认证、RBAC； Security Context：限制容器的行为，例如只读文 件系统、特权、运行用户等 ； Pod Security Policy：集">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Falco：云原生安全运行时项目">
+<meta property="og:url" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/index.html">
+<meta property="og:site_name" content="老 宋">
+<meta property="og:description" content="Falco ：云原生安全运行时项目kube-sec CNCF 官方继 CKA 之后推出了含金量更高的 CKS 考试，聚焦于 Kubernetes 供应链安全。 k8s 整体的供应链安全大致分为以下几个方面，有时间会一一更新： 集群安全：TLS 证书认证、RBAC； Security Context：限制容器的行为，例如只读文 件系统、特权、运行用户等 ； Pod Security Policy：集">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/1.png">
+<meta property="og:image" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/2.jpg">
+<meta property="og:image" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/4.jpg">
+<meta property="og:image" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/5.jpg">
+<meta property="og:image" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/6.jpg">
+<meta property="article:published_time" content="2022-04-16T02:48:52.000Z">
+<meta property="article:modified_time" content="2022-04-16T02:55:19.505Z">
+<meta property="article:author" content="JL Song">
+<meta property="article:tag" content="云原生">
+<meta property="article:tag" content="安全">
+<meta property="article:tag" content="kubernetes">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/1.png">
+
+<link rel="canonical" href="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Falco：云原生安全运行时项目 | 老 宋</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">老 宋</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">人生最难是相逢，各位珍重！</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">24</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">5</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">12</span></a>
+
+  </li>
+        <li class="menu-item menu-item-schedule">
+
+    <a href="/schedule/" rel="section"><i class="fa fa-calendar fa-fw"></i>日程表</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/horse.jpg">
+      <meta itemprop="name" content="JL Song">
+      <meta itemprop="description" content="儿当成名酒须醉">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="老 宋">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Falco：云原生安全运行时项目
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-04-16 10:48:52 / 修改时间：10:55:19" itemprop="dateCreated datePublished" datetime="2022-04-16T10:48:52+08:00">2022-04-16</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C/" itemprop="url" rel="index"><span itemprop="name">工作</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BF%90%E7%BB%B4/" itemprop="url" rel="index"><span itemprop="name">运维</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="Falco-：云原生安全运行时项目"><a href="#Falco-：云原生安全运行时项目" class="headerlink" title="Falco ：云原生安全运行时项目"></a><code>Falco</code> ：云原生安全运行时项目</h2><h3 id="kube-sec"><a href="#kube-sec" class="headerlink" title="kube-sec"></a><code>kube-sec</code></h3><ul>
+<li><code>CNCF</code> 官方继 <code>CKA</code> 之后推出了含金量更高的 <code>CKS</code> 考试，聚焦于 <code>Kubernetes</code> 供应链安全。</li>
+<li><code>k8s</code> 整体的供应链安全大致分为以下几个方面，有时间会一一更新：<ul>
+<li>集群安全：<code>TLS</code> 证书认证、<code>RBAC</code>；</li>
+<li><code>Security Context</code>：限制容器的行为，例如只读文 件系统、特权、运行用户等 ；</li>
+<li><code>Pod Security Policy</code>：集群级的 <code>Pod</code>安全策略， 自动为集群内的 <code>Pod</code> 配置安全策略 ；</li>
+<li><code>Sysctls</code>：允许容器设置内核参数 ；</li>
+<li><code>AppArmor</code>：限制容器中应用对资源的访问权限 ；</li>
+<li><code>Network Policies</code>：控制集群中网络通信 ；</li>
+<li><code>Seccomp</code>：限制容器内进程的系统调用；</li>
+</ul>
+</li>
+<li>这次我们介绍和系统调用相关的，谈如何监控容器的系统调用；</li>
+</ul>
+<a id="more"></a>
+
+<h3 id="Falco-介绍"><a href="#Falco-介绍" class="headerlink" title="Falco 介绍"></a><code>Falco</code> 介绍</h3><p><code>Falco</code> 作为一款为云原生平台设计的进程异常行为检测工具，支持接入系统调用事件和 <code>Kubernetes</code> 审计日志。<code>Falco</code> 的工作方式是查看文件更改、网络活动、进程表和其他数据是否存在可疑行为，然后通过可插拔后端发送警报，通过内核模块或扩展的  <code>EBPF</code> 探测器在主机的系统调用级别检查事件。<code>Falco</code> 包含一组丰富的规则，你可以编辑这些规则以标记特定的异常行为，并为正常的计算机操作创建允许列表。</p>
+<ul>
+<li><p>总体来讲，<code>Falco</code> 是一个基于规则的进程异常行为检测工具，它目前支持的事件源有两种：</p>
+<ul>
+<li><code>Sysdig</code> 内核模块；</li>
+<li><code>Kubernetes</code> 审计日志；</li>
+</ul>
+</li>
+<li><p>其中，<code>Sysdig</code> 内核模块提供的是整个宿主机上的实时系统调用事件信息，是 <code>Falco</code> 依赖的核心事件源。</p>
+</li>
+<li><p>另外，<code>Falco</code> 支持五种输出告警的方式，后两种方式使得我们能够很容易将 <code>Falco</code> 与其他组件或框架组合起来。</p>
+<ul>
+<li>输出到标准输出</li>
+<li>输出到文件</li>
+<li>输出到 <code>Syslog</code></li>
+<li>输出到 <code>HTTP</code> 服务</li>
+<li>输出到其他程序（命令行管道方式）</li>
+</ul>
+</li>
+<li><p>下图是 <code>Falco</code> 在 <code>k8s</code> 环境中的流程图：<br><img src="1.png" alt=""></p>
+</li>
+</ul>
+<h3 id="开启-Kubernetes-审计日志"><a href="#开启-Kubernetes-审计日志" class="headerlink" title="开启 Kubernetes 审计日志"></a>开启 <code>Kubernetes</code> 审计日志</h3><ul>
+<li><p><code>apiserver</code> 配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">"--audit-log-path=/var/log/kube-audit/audit.log",</span><br><span class="line"><span class="string">"--audit-policy-file=/etc/kubernetes/audit-policy.yaml"</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>创建审计规则文件：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">mkdir /var/log/kube-audit</span><br><span class="line"></span><br><span class="line">cat /etc/kubernetes/audit-policy.yaml</span><br><span class="line">---</span><br><span class="line">apiVersion: audit.k8s.io/v1beta1 # This is required.</span><br><span class="line">kind: Policy</span><br><span class="line"><span class="meta">#</span><span class="bash"> Don<span class="string">'t generate audit events for all requests in RequestReceived stage.</span></span></span><br><span class="line">omitStages:</span><br><span class="line">  - "RequestReceived"</span><br><span class="line">rules:</span><br><span class="line"><span class="meta">  #</span><span class="bash"> Log pod changes at RequestResponse level</span></span><br><span class="line">  - level: RequestResponse</span><br><span class="line">    resources:</span><br><span class="line">    - group: ""</span><br><span class="line">      # Resource "pods" doesn't match requests to any subresource of pods,</span><br><span class="line">      # which is consistent with the RBAC policy.</span><br><span class="line">      resources: ["pods"]</span><br><span class="line"><span class="meta">  #</span><span class="bash"> Log <span class="string">"pods/log"</span>, <span class="string">"pods/status"</span> at Metadata level</span></span><br><span class="line">  - level: Metadata</span><br><span class="line">    resources:</span><br><span class="line">    - group: ""</span><br><span class="line">      resources: ["pods/log", "pods/status"]</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> Don<span class="string">'t log requests to a configmap called "controller-leader"</span></span></span><br><span class="line">  - level: None</span><br><span class="line">    resources:</span><br><span class="line">    - group: ""</span><br><span class="line">      resources: ["configmaps"]</span><br><span class="line">      resourceNames: ["controller-leader"]</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> Don<span class="string">'t log watch requests by the "system:kube-proxy" on endpoints or services</span></span></span><br><span class="line">  - level: None</span><br><span class="line">    users: ["system:kube-proxy"]</span><br><span class="line">    verbs: ["watch"]</span><br><span class="line">    resources:</span><br><span class="line">    - group: "" # core API group</span><br><span class="line">      resources: ["endpoints", "services"]</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> Don<span class="string">'t log authenticated requests to certain non-resource URL paths.</span></span></span><br><span class="line">  - level: None</span><br><span class="line">    userGroups: ["system:authenticated"]</span><br><span class="line">    nonResourceURLs:</span><br><span class="line">    - "/api*" # Wildcard matching.</span><br><span class="line">    - "/version"</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> Log the request body of configmap changes <span class="keyword">in</span> kube-system.</span></span><br><span class="line">  - level: Request</span><br><span class="line">    resources:</span><br><span class="line">    - group: "" # core API group</span><br><span class="line">      resources: ["configmaps"]</span><br><span class="line">    # This rule only applies to resources in the "kube-system" namespace.</span><br><span class="line">    # The empty string "" can be used to select non-namespaced resources.</span><br><span class="line">    namespaces: ["kube-system"]</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> Log configmap and secret changes <span class="keyword">in</span> all other namespaces at the Metadata level.</span></span><br><span class="line"><span class="meta">  #</span><span class="bash">- level: Metadata</span></span><br><span class="line">  - level: Request</span><br><span class="line">    resources:</span><br><span class="line">    - group: "" # core API group</span><br><span class="line">      resources: ["secrets", "configmaps"]</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> Log all other resources <span class="keyword">in</span> core and extensions at the Request level.</span></span><br><span class="line">  - level: Request</span><br><span class="line">    resources:</span><br><span class="line">    - group: "" # core API group</span><br><span class="line">    - group: "extensions" # Version of group should NOT be included.</span><br><span class="line"></span><br><span class="line"><span class="meta">  #</span><span class="bash"> A catch-all rule to <span class="built_in">log</span> all other requests at the Metadata level.</span></span><br><span class="line">  - level: Metadata</span><br><span class="line">    # Long-running requests like watches that fall under this rule will not</span><br><span class="line">    # generate an audit event in RequestReceived.</span><br><span class="line">    omitStages:</span><br><span class="line">      - "RequestReceived"</span><br><span class="line">      </span><br><span class="line"><span class="meta">#</span><span class="bash"> 重启 kubelet</span></span><br><span class="line">systemctl restart kubelet</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h3 id="部署-Falco"><a href="#部署-Falco" class="headerlink" title="部署 Falco"></a>部署 <code>Falco</code></h3><ul>
+<li><p>安装 <code>kernel-devel</code></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[root@hy-node03 ~]# uname -r</span><br><span class="line">3.10.0-957.el7.x86_64</span><br><span class="line">[root@hy-node03 ~]# yum localinstall kernel-devel-3.10.0-957.el7.x86_64.rpm</span><br></pre></td></tr></table></figure>
+
+<p><img src="2.jpg" alt=""></p>
+</li>
+<li><p>安装 <code>falco</code> ，<code>falco</code> 安装方式很多。既然用了 <code>k8s</code> ，那我们以 <code>daemonsets</code> 的方式来部署；官方提供了 <code>helm chart</code> 包；这里暂时不展开，我们下面会和 <code>FalcoSideKick</code> 一起部署；</p>
+</li>
+</ul>
+<h3 id="使用-FalcoSideKick-扩展-Falco-的输出"><a href="#使用-FalcoSideKick-扩展-Falco-的输出" class="headerlink" title="使用 FalcoSideKick 扩展 Falco 的输出"></a>使用 <code>FalcoSideKick</code> 扩展 <code>Falco</code> 的输出</h3><ul>
+<li><p>上面我们提到 我们能够很容易将 <code>Falco</code> 与其他组件或框架组合起来，这里 <code>falco</code> 提供了 <code>FalcoSideKick</code> 来提供各种工具的集成，包括但不限于以下工具。同时还提供了官方的 <code>UI</code> 界面：</p>
+<ul>
+<li><code>Slack</code></li>
+<li><code>Rocketchat</code></li>
+<li><code>Mattermost</code></li>
+<li><code>Teams</code></li>
+<li><code>Datadog</code></li>
+<li><code>AlertManager</code></li>
+<li><code>Elasticsearch</code></li>
+<li><code>Loki</code></li>
+<li><code>NATS</code></li>
+<li><code>Influxdb</code></li>
+<li><code>AWS Lambda</code></li>
+<li><code>AWS SQS</code></li>
+<li><code>SMTP (email)</code></li>
+<li><code>Opsgenie</code></li>
+<li><code>Webhook</code></li>
+</ul>
+</li>
+<li><p>使用 <code>helm</code> 部署，修改 <code>values.yaml</code>：</p>
+<ul>
+<li>启用 <code>falcosidekick</code>；</li>
+<li>启用 <code>auditlog</code>；</li>
+<li>启用  <code>falcosidekick-ui</code>；</li>
+<li>传送到 <code>AlertManager</code>；</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">helm repo add falcosecurity https://falcosecurity.github.io/charts</span><br><span class="line">helm repo update</span><br><span class="line">helm3 pull falcosecurity/falco</span><br><span class="line"></span><br><span class="line">kubectl create ns falco</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>查看部署情况：</p>
+<p><img src="4.jpg" alt=""></p>
+<p><img src="5.jpg" alt=""></p>
+</li>
+<li><p><code>falcosidekick-ui</code> 提供了一个 <code>web</code> 界面来进行观测：</p>
+<p><img src="6.jpg" alt=""></p>
+</li>
+</ul>
+<h3 id="后续工作"><a href="#后续工作" class="headerlink" title="后续工作"></a>后续工作</h3><ul>
+<li>用 <code>filebeat</code> 收集集群的 <code>audit log</code>  ；</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>JL Song
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/" title="Falco：云原生安全运行时项目">https://songjlg.github.io/2022/04/16/Falco：云原生安全运行时项目/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/zh-CN" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="https://twitter.com/laosongbond">
+            <span class="icon">
+              <i class="fab fa-twitter"></i>
+            </span>
+
+            <span class="label">Twitter</span>
+          </a>
+        </div>
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="/images/wechat_company.jpg">
+            <span class="icon">
+              <i class="fab fa-weixin"></i>
+            </span>
+
+            <span class="label">WeChat</span>
+          </a>
+        </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          
+          <div class="post-tags">
+              <a href="/tags/%E4%BA%91%E5%8E%9F%E7%94%9F/" rel="tag"><i class="fa fa-tag"></i> 云原生</a>
+              <a href="/tags/%E5%AE%89%E5%85%A8/" rel="tag"><i class="fa fa-tag"></i> 安全</a>
+              <a href="/tags/kubernetes/" rel="tag"><i class="fa fa-tag"></i> kubernetes</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/27/%E5%B0%86APISERVER%E5%92%8CLDAP%E9%9B%86%E6%88%90%E6%9D%A5%E6%8E%A7%E5%88%B6kubernetes%E9%9B%86%E7%BE%A4%E7%9A%84%E6%9D%83%E9%99%90/" rel="prev" title="将APISERVER和LDAP集成来控制kubernetes集群的权限">
+      <i class="fa fa-chevron-left"></i> 将APISERVER和LDAP集成来控制kubernetes集群的权限
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Falco-：云原生安全运行时项目"><span class="nav-number">1.</span> <span class="nav-text">Falco ：云原生安全运行时项目</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#kube-sec"><span class="nav-number">1.1.</span> <span class="nav-text">kube-sec</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Falco-介绍"><span class="nav-number">1.2.</span> <span class="nav-text">Falco 介绍</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#开启-Kubernetes-审计日志"><span class="nav-number">1.3.</span> <span class="nav-text">开启 Kubernetes 审计日志</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#部署-Falco"><span class="nav-number">1.4.</span> <span class="nav-text">部署 Falco</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用-FalcoSideKick-扩展-Falco-的输出"><span class="nav-number">1.5.</span> <span class="nav-text">使用 FalcoSideKick 扩展 Falco 的输出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#后续工作"><span class="nav-number">1.6.</span> <span class="nav-text">后续工作</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="JL Song"
+      src="/images/horse.jpg">
+  <p class="site-author-name" itemprop="name">JL Song</p>
+  <div class="site-description" itemprop="description">儿当成名酒须醉</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">12</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/SongJLG" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;SongJLG" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:SongJL0818@outlook.com" title="E-Mail → mailto:SongJL0818@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/laosongbond" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;laosongbond" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i>Twitter</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://instagram.com/songjl0818" title="Instagram → https:&#x2F;&#x2F;instagram.com&#x2F;songjl0818" rel="noopener" target="_blank"><i class="fab fa-instagram fa-fw"></i>Instagram</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/zh-CN" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">JL Song</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+  <div class="addthis_inline_share_toolbox">
+    <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5ea8f30db4b1fef2" async="async"></script>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

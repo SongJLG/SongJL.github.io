@@ -122,7 +122,7 @@
   </li>
         <li class="menu-item menu-item-tags">
 
-    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">23</span></a>
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签<span class="badge">24</span></a>
 
   </li>
         <li class="menu-item menu-item-categories">
@@ -132,7 +132,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">11</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">12</span></a>
 
   </li>
         <li class="menu-item menu-item-schedule">
@@ -190,6 +190,98 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://songjlg.github.io/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/horse.jpg">
+      <meta itemprop="name" content="JL Song">
+      <meta itemprop="description" content="儿当成名酒须醉">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="老 宋">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/" class="post-title-link" itemprop="url">Falco：云原生安全运行时项目</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-04-16 10:48:52 / 修改时间：10:55:19" itemprop="dateCreated datePublished" datetime="2022-04-16T10:48:52+08:00">2022-04-16</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C/" itemprop="url" rel="index"><span itemprop="name">工作</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BF%90%E7%BB%B4/" itemprop="url" rel="index"><span itemprop="name">运维</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="Falco-：云原生安全运行时项目"><a href="#Falco-：云原生安全运行时项目" class="headerlink" title="Falco ：云原生安全运行时项目"></a><code>Falco</code> ：云原生安全运行时项目</h2><h3 id="kube-sec"><a href="#kube-sec" class="headerlink" title="kube-sec"></a><code>kube-sec</code></h3><ul>
+<li><code>CNCF</code> 官方继 <code>CKA</code> 之后推出了含金量更高的 <code>CKS</code> 考试，聚焦于 <code>Kubernetes</code> 供应链安全。</li>
+<li><code>k8s</code> 整体的供应链安全大致分为以下几个方面，有时间会一一更新：<ul>
+<li>集群安全：<code>TLS</code> 证书认证、<code>RBAC</code>；</li>
+<li><code>Security Context</code>：限制容器的行为，例如只读文 件系统、特权、运行用户等 ；</li>
+<li><code>Pod Security Policy</code>：集群级的 <code>Pod</code>安全策略， 自动为集群内的 <code>Pod</code> 配置安全策略 ；</li>
+<li><code>Sysctls</code>：允许容器设置内核参数 ；</li>
+<li><code>AppArmor</code>：限制容器中应用对资源的访问权限 ；</li>
+<li><code>Network Policies</code>：控制集群中网络通信 ；</li>
+<li><code>Seccomp</code>：限制容器内进程的系统调用；</li>
+</ul>
+</li>
+<li>这次我们介绍和系统调用相关的，谈如何监控容器的系统调用；</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/04/16/Falco%EF%BC%9A%E4%BA%91%E5%8E%9F%E7%94%9F%E5%AE%89%E5%85%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E9%A1%B9%E7%9B%AE/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -680,94 +772,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://songjlg.github.io/2021/11/05/%E4%BD%BF%E7%94%A8packer%E6%9E%84%E5%BB%BA%E8%87%AA%E5%AE%9A%E4%B9%89%E9%95%9C%E5%83%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/horse.jpg">
-      <meta itemprop="name" content="JL Song">
-      <meta itemprop="description" content="儿当成名酒须醉">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="老 宋">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/11/05/%E4%BD%BF%E7%94%A8packer%E6%9E%84%E5%BB%BA%E8%87%AA%E5%AE%9A%E4%B9%89%E9%95%9C%E5%83%8F/" class="post-title-link" itemprop="url">使用packer构建自定义镜像</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2021-11-05 00:42:51 / 修改时间：00:49:02" itemprop="dateCreated datePublished" datetime="2021-11-05T00:42:51+08:00">2021-11-05</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%B7%A5%E4%BD%9C/" itemprop="url" rel="index"><span itemprop="name">工作</span></a>
-                </span>
-                  ，
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E8%99%9A%E6%8B%9F%E5%8C%96/" itemprop="url" rel="index"><span itemprop="name">虚拟化</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="使用packer构建自定义镜像"><a href="#使用packer构建自定义镜像" class="headerlink" title="使用packer构建自定义镜像"></a>使用<code>packer</code>构建自定义镜像</h2><h3 id="虚拟化工具链介绍："><a href="#虚拟化工具链介绍：" class="headerlink" title="虚拟化工具链介绍："></a>虚拟化工具链介绍：</h3><ul>
-<li><p><strong><code>KVM</code></strong>：<code>Linux</code> 内核态的虚拟化组件。</p>
-</li>
-<li><p><strong><code>QEMU</code></strong>：<code>Linux</code> 用户态的虚拟化组件。<code>QEMU</code> 跟 <code>KVM</code> 结合提供完整的虚拟化技术支撑，属于架构的最底层。</p>
-</li>
-<li><p><strong><code>Libvirt</code></strong>：介于架构底层和架构上层之间，它将底层的虚拟化特性抽象成统一的 <code>API</code>（应用程序编程接口），从而提供给上层调用。</p>
-</li>
-<li><p><strong><code>Packer</code> 和 <code>Vagrant</code></strong>：虚拟化客户端工具，它们属于架构的最上层，直接跟终端用户交互。同时，在客户端之间也会产生相应联系，我们将 <code>Packer</code> 的输出物作为 <code>Vagrant</code> 的输入源。</p>
-</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/11/05/%E4%BD%BF%E7%94%A8packer%E6%9E%84%E5%BB%BA%E8%87%AA%E5%AE%9A%E4%B9%89%E9%95%9C%E5%83%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -839,7 +843,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-count">12</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -852,7 +856,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">23</span>
+        <span class="site-state-item-count">24</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
